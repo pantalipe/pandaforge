@@ -105,6 +105,11 @@ def run_no_think(
         messages=[{"role": "user", "content": "/no_think " + prompt}],
         max_tokens=max_tokens,
         temperature=0.2,
+        # "/no_think" no texto e o switch do Qwen3; chat_template_kwargs
+        # e o switch do Qwen3.5+ (confirmado empiricamente -- sem isso,
+        # Qwen3.5 pensa mesmo assim e pode deixar `content` vazio se
+        # cortar no meio). Os dois juntos cobrem as duas familias.
+        extra={"chat_template_kwargs": {"enable_thinking": False}},
     )
     return _finish("no_think", task, workdir, [gen], gen.content)
 

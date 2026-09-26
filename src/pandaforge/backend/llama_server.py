@@ -90,6 +90,7 @@ class Generation:
     predicted_per_second: float = 0.0
 
     wall_time_s: float = 0.0      # tempo de parede medido por nos (inclui rede)
+    reasoning_content: str = ""   # so chat(): texto de pensamento separado (Qwen3.5+)
     raw: dict[str, Any] = field(default_factory=dict)  # resposta crua, p/ debug/auditoria
 
     @property
@@ -260,22 +261,36 @@ class LlamaServerBackend:
         max_tokens: int = 2048,
         temperature: float = 0.5,
         top_p: float = 0.9,
+        extra: dict | None = None,
     ) -> Generation:
         """
         Chama /v1/chat/completions (o mesmo endpoint do
         pandagent.PandaClient.ask()). Nao ha `stop_type` nem controle
         de corte no meio do thinking aqui -- para isso, use complete().
+
+        `extra` deixa passar campos extras do payload -- em particular
+        `chat_template_kwargs: {"enable_thinking": False}`, necessario
+        para desligar o pensamento em modelos Qwen3.5+ (confirmado
+        empiricamente: o prefixo de texto "/no_think" do Qwen3 nao tem
+        efeito aqui, e o llama-server separa o pensamento em
+        `reasoning_content`, deixando `content` vazio se cortado no
+        meio -- ver probe_qwen35_*.py).
         """
-        body, dt = self._post("/v1/chat/completions", {
+        payload = {
             "model": self.model,
             "messages": messages,
             "stream": False,
             "temperature": temperature,
             "top_p": top_p,
             "max_tokens": max_tokens,
-        })
+        }
+        if extra:
+            payload.update(extra)
+        body, dt = self._post("/v1/chat/completions", payload)
         choice = (body.get("choices") or [{}])[0]
-        content = (choice.get("message", {}).get("content") or "").strip()
+        message = choice.get("message", {})
+        content = (message.get("content") or "").strip()
+        reasoning_content = (message.get("reasoning_content") or "").strip()
         usage = body.get("usage", {})
         timings = body.get("timings", {})
         return Generation(
@@ -291,5 +306,6 @@ class LlamaServerBackend:
             predicted_ms=timings.get("predicted_ms", 0.0),
             predicted_per_second=timings.get("predicted_per_second", 0.0),
             wall_time_s=dt,
+            reasoning_content=reasoning_content,
             raw=body,
         )
