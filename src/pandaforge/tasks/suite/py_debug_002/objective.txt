@@ -1,0 +1,5 @@
+O projeto Python em src/warehouse.py tem 4 funcoes: parse_transactions, apply_transactions, lowest_stock_alert e reconcile. A suite de testes em tests/test_warehouse.py tem 5 testes; 2 deles estao falhando (um teste de unidade e um teste de ponta a ponta -- os dois vem da MESMA causa raiz).
+
+O bug e silencioso: nao lanca excecao, so produz numeros de estoque errados, e so aparece quando o mesmo SKU recebe mais de uma transacao de entrada (IN). Nao da pra ver so lendo uma funcao isolada -- e preciso rastrear a sequencia de transacoes de um caso de teste pra perceber a inconsistencia.
+
+Objetivo: descubra a causa raiz (uma unica linha, dentro de uma unica funcao), corrija SOMENTE isso, e garanta que os 5 testes passem.

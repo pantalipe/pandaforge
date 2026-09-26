@@ -44,24 +44,41 @@ class TaskResult:
         return f"{self.n_passed} passed, {self.n_failed} failed (rc={self.returncode})"
 
 
+_DEFAULT_OBJECTIVE = (
+    "Ha um bug real em algum lugar do projeto e a suite de testes tem "
+    "pelo menos 1 teste falhando. Descubra por que, corrija SOMENTE o "
+    "bug real (nao reescreva o que ja funciona), e garanta que todos "
+    "os testes passem."
+)
+
+
 class PyDebugTask:
     """
     Uma tarefa de debugging Python com fixture (projeto quebrado) +
     verificador (pytest). O criterio de sucesso e objetivo: os testes
     passam ou nao passam -- nenhum LLM avalia isso.
+
+    Cada tarefa pode ter seu proprio objective.txt (em
+    suite/<name>/objective.txt) com o enunciado especifico -- se nao
+    existir, usa um enunciado generico.
     """
 
-    def __init__(self, name: str, fixture_dir: Path, timeout_s: float = 30.0):
+    def __init__(self, name: str, fixture_dir: Path, timeout_s: float = 30.0,
+                 objective: str | None = None):
         self.name = name
         self.fixture_dir = fixture_dir
         self.timeout_s = timeout_s
+        self.objective = objective or _DEFAULT_OBJECTIVE
         if not self.fixture_dir.is_dir():
             raise FileNotFoundError(f"fixture nao encontrada: {self.fixture_dir}")
 
     @classmethod
     def load(cls, name: str) -> "PyDebugTask":
-        fixture_dir = SUITE_DIR / name / "fixture"
-        return cls(name=name, fixture_dir=fixture_dir)
+        task_dir = SUITE_DIR / name
+        fixture_dir = task_dir / "fixture"
+        objective_path = task_dir / "objective.txt"
+        objective = objective_path.read_text(encoding="utf-8") if objective_path.is_file() else None
+        return cls(name=name, fixture_dir=fixture_dir, objective=objective)
 
     def setup(self) -> Path:
         """

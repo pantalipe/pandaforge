@@ -1,13 +1,13 @@
 """
-Roda as 3 estrategias (no_think, think, iterative) na tarefa
-py_debug_001 e imprime um relatorio comparativo.
+Roda as 3 estrategias (no_think, think, iterative) numa tarefa da
+task suite e imprime um relatorio comparativo.
 
 O veredito de sucesso de cada estrategia vem SEMPRE de
 task.verify(workdir) -- o pytest real rodando no estado final do
 arquivo -- nunca de o agente "achar" que terminou.
 
 Uso:
-    python scripts/run_strategies_py_debug_001.py --think-budget 800
+    python scripts/run_strategies_py_debug_001.py --task py_debug_002 --think-budget 1200
 """
 import argparse
 import sys
@@ -54,6 +54,7 @@ def main():
     ap.add_argument("--edit-tool", choices=["write", "patch"], default="write",
                      help="mecanismo de edicao do iterative -- 'patch' testa H2")
     ap.add_argument("--model", default="qwen3:4b")
+    ap.add_argument("--task", default="py_debug_001")
     ap.add_argument("--only", default="abc",
                      help="quais estrategias rodar, ex.: 'bc' pula o no_think")
     args = ap.parse_args()
@@ -66,7 +67,7 @@ def main():
     section("Aquecimento (descartado)")
     print(f"custo de troca/carregamento: {backend.warm_up():.2f}s")
 
-    task = PyDebugTask.load("py_debug_001")
+    task = PyDebugTask.load(args.task)
     episodes = []
 
     if "a" in args.only:
@@ -74,14 +75,14 @@ def main():
         ep_a = run_no_think(backend, task, task.setup())
         report(ep_a)
         episodes.append(ep_a)
-        record_episode("py_debug_001", ep_a, args.model, config={}, hypothesis=HYPOTHESIS)
+        record_episode(args.task, ep_a, args.model, config={}, hypothesis=HYPOTHESIS)
 
     if "b" in args.only:
         section(f"B) THINK (budget={args.think_budget})")
         ep_b = run_think(backend, task, task.setup(), think_budget=args.think_budget)
         report(ep_b)
         episodes.append(ep_b)
-        record_episode("py_debug_001", ep_b, args.model,
+        record_episode(args.task, ep_b, args.model,
                         config={"think_budget": args.think_budget}, hypothesis=HYPOTHESIS)
 
     if "c" in args.only:
@@ -93,16 +94,14 @@ def main():
             continue_budget=args.continue_budget,
             max_cycles=args.iter_cycles,
             edit_tool=args.edit_tool,
-            seed_files=["src/orders.py"],
         )
         report(ep_c)
         episodes.append(ep_c)
-        record_episode("py_debug_001", ep_c, args.model,
+        record_episode(args.task, ep_c, args.model,
                         config={"think_budget": args.think_budget,
                                 "continue_budget": args.continue_budget,
                                 "max_cycles": args.iter_cycles,
-                                "edit_tool": args.edit_tool,
-                                "seed_files": ["src/orders.py"]},
+                                "edit_tool": args.edit_tool},
                         hypothesis=HYPOTHESIS)
 
     section("RESUMO")

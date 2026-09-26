@@ -36,14 +36,13 @@ from pandaforge.tools.protocol import (
     TOOL_INSTRUCTIONS_WRITE,
     TOOL_INSTRUCTIONS_PATCH,
 )
-from pandaforge.strategies.prompts import TASK_OBJECTIVE
-from pandaforge.strategies.single_shot import EpisodeResult
+from pandaforge.strategies.single_shot import EpisodeResult, _iter_source_files
 
 
-def _build_cycle_prompt(state_log: List[str], instructions: str) -> str:
+def _build_cycle_prompt(objective: str, state_log: List[str], instructions: str) -> str:
     recent = "\n\n".join(state_log[-6:])
     body = (
-        TASK_OBJECTIVE
+        objective
         + "\n\n" + instructions
         + "\n\nHistorico recente (mais recente por ultimo):\n"
         + (recent or "(inicio -- nenhuma acao executada ainda)")
@@ -97,8 +96,11 @@ def run_iterative(
     # editar -- descobrimos (ver docs/NEGATIVE_RESULTS.md) que ele pode
     # simplesmente nao ler e alucinar o conteudo. Entao o(s) arquivo(s)
     # relevante(s) entram no estado ANTES do ciclo 1, sem custar uma
-    # chamada ao modelo.
-    for seed_path in (seed_files or []):
+    # chamada ao modelo. Se seed_files nao for passado, descobre
+    # automaticamente todos os .py em src/ (mesma logica do single_shot).
+    if seed_files is None:
+        seed_files = [p.relative_to(workdir).as_posix() for p in _iter_source_files(workdir)]
+    for seed_path in seed_files:
         try:
             obs = read_file(workdir, seed_path)
         except ToolError as e:
@@ -110,7 +112,7 @@ def run_iterative(
 
     for cycle in range(1, max_cycles + 1):
         cycle_t0 = time.time()
-        prompt = _build_cycle_prompt(state_log, instructions)
+        prompt = _build_cycle_prompt(task.objective, state_log, instructions)
         gen = backend.complete(prompt, n_predict=think_budget, temperature=0.6)
         generations.append(gen)
         text = gen.content

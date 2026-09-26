@@ -1,0 +1,3 @@
+O projeto Python em src/orders.py tem 3 funcoes: total_price, apply_discount e format_price. A suite de testes em tests/test_orders.py tem 3 testes; exatamente 1 deles esta falhando.
+
+Objetivo: descubra por que esse teste falha, corrija SOMENTE o bug real (nao reescreva as funcoes que ja funcionam), e garanta que os 3 testes passem.

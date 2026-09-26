@@ -27,20 +27,31 @@ inteiro ficou PIOR que `think` em sucesso e custo -- ver
 qualquer coisa sobre H1 em si; o resultado ate agora fala mais sobre
 o MECANISMO DE EDICAO do que sobre a hipotese central.
 
-Atualizacao: com `patch_file` + seed automatico de `read_file` +
-verificacao automatica pos-edicao (o harness roda pytest sozinho
-apos qualquer edicao bem-sucedida e encerra o loop se passar, em vez
-de depender do modelo lembrar de chamar run_tests), `iterative` PASSOU
-com 456 tokens / 126.6s / 2 chamadas -- MENOS que `think` (758 tokens
-/ 452.5s / 1 chamada) nas duas dimensoes. Primeira evidencia real a
-favor de H1 nesta tarefa. Ressalva importante: o ganho aqui veio de
-engenharia do HARNESS (parar assim que o objetivo real e atingido),
-nao de o modelo "raciocinar melhor" em ciclos -- ainda nao isolamos
-se a vantagem persiste numa tarefa onde o modelo realmente precisa
-de mais de 1 ciclo de edicao pra chegar la (aqui, o patch correto saiu
-de primeira, no ciclo 1). H1 continua precisando de uma tarefa mais
-dificil pra ser testada de forma que realmente distinga "iterar
-ajuda a pensar" de "parar cedo economiza".
+Atualizacao (py_debug_002, teste calibrado de verdade): usamos a
+calibracao do proprio `think` (precisou de 903 tokens pra ter sucesso
+com budget generoso) pra escolher `think_budget=400` -- ABAIXO do
+necessario -- como primeiro teste genuinamente justo: sera que
+`iterative`, com o MESMO orcamento por ciclo, resolve onde o
+single-shot e forcado a cortar? `think` cortou de fato (SyntaxError,
+arquivo truncado). `iterative` (patch, seed, verificacao automatica)
+TAMBEM falhou -- pior ainda, REGREDIU (3 testes falhando em vez de
+2), porque o ciclo 1 diagnosticou a causa raiz certa mas implementou
+um fix incompleto (`+=` sem tratar SKU novo) sob pressao do orcamento
+curto, e os ciclos seguintes nunca corrigiram isso. Custou 2499 tokens
+e 840s contra 400 tokens e 132s do `think` que so falhou (nao
+regrediu). Ver `docs/NEGATIVE_RESULTS.md` para o detalhe completo.
+
+**Conclusao parcial, 2 tarefas testadas:** H1 tem UM resultado a favor
+(py_debug_001, mas que veio de "parar cedo economiza", nao de
+"iterar ajuda a pensar melhor") e UM resultado claramente contra
+(py_debug_002, no teste mais justo ate agora -- budget forcado abaixo
+do necessario). A hipotese, na forma atual, NAO esta se sustentando:
+quando o orcamento por ciclo e curto o bastante pra realmente cortar
+o raciocinio do single-shot, o MESMO orcamento curto tambem nao da
+pro `iterative` raciocinar bem o suficiente por ciclo -- ele so
+acumula erros ao longo de varios ciclos em vez de um so. Precisa de
+mais tarefas/seeds antes de declarar H1 falsificada, mas o padrao ate
+agora aponta nessa direcao.
 
 ---
 

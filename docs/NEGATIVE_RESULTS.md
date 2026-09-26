@@ -87,3 +87,83 @@ comparar write_file vs patch_file de novo.
 (`strategy: iterative_patch`) -- esta com `generations` completo,
 nao retroativo.
 
+---
+
+## 2026-09 -- Bug no proprio harness: parser exigia crases que o prompt nao pedia
+
+**Tarefa:** `py_debug_002` (nova -- bug silencioso de sobrescrita em
+`apply_transactions`, requer rastrear varias transacoes em sequencia
+para perceber; 5 testes, 2 falhando na fixture original).
+
+**O que aconteceu:** ao generalizar `single_shot.py` para tarefas
+multi-arquivo, a instrucao do prompt passou a pedir "um bloco de
+codigo comecando com `# file: <caminho>`" sem exigir explicitamente
+as crases (` ``` `) ao redor. O regex de extracao exigia as crases.
+Tanto `no_think` quanto `think` **diagnosticaram e corrigiram o bug
+corretamente** na resposta (confirmado lendo o campo `content` bruto
+no JSONL), mas nao envolveram a resposta em crases -- entao nada foi
+extraido, nada foi aplicado, e o resultado registrado foi FALHA, ainda
+que o modelo tivesse acertado.
+
+**Correcao:** prompt agora mostra o formato exato com um exemplo
+completo (crases incluidas); o regex de extracao ficou tolerante a
+crases ausentes (ancora em `# file:` e para no proximo `# file:`, na
+crase de fechamento, ou no fim do texto -- o que vier primeiro).
+
+**Licao:** um resultado "FALHOU" no JSONL pode ser falha do harness,
+nao do modelo -- antes de registrar qualquer coisa como evidencia
+contra uma hipotese, vale conferir o `content` bruto da geracao, nao
+so o veredito do pytest.
+
+---
+
+## 2026-09 -- Teste calibrado de H1: nem think nem iterative resolvem sob orcamento apertado
+
+**Tarefa:** `py_debug_002`. Calibracao previa (budget generoso, 1200):
+`think` precisou de 903 tokens pra ter sucesso -- entao usamos
+`think_budget=400` (abaixo do necessario) como o primeiro teste
+genuinamente justo de H1: sera que `iterative`, com o MESMO orcamento
+por ciclo, consegue terminar onde o single-shot e forcado a cortar?
+
+**think (budget=400):** cortou no meio de um docstring (`stop_type=
+'limit'`), gerando um arquivo com string nao fechada -- `SyntaxError`
+na coleta dos testes. FALHA real por esgotamento de orcamento, nao
+um artefato do harness. 400 tokens, 132.1s.
+
+**iterative+patch (budget=400, continue=200, 5 ciclos, com seed e
+verificacao automatica):** no ciclo 1, o modelo diagnosticou o
+problema certo (sobrescrita em vez de soma) mas implementou o fix
+ERRADO -- trocou `stock[sku] = qty` por `stock[sku] += qty`, que
+lanca `KeyError` na primeira vez que um SKU aparece (`+=` exige que a
+chave ja exista; faltou o `.get(sku, 0)`). Isso **regrediu** de 2
+testes falhando para 3. A verificacao automatica detectou
+corretamente que nao passou e continuou o loop; nos ciclos 2-5 o
+modelo tentou reaplicar patches com um `OLD` que ja nao batia mais
+(mesmo padrao de nao reler o arquivo apos uma mudanca, ja visto
+antes) e nunca corrigiu o proprio erro. FALHOU, pior que o estado
+inicial. 2499 tokens, 840.0s, 10 chamadas.
+
+**Comparacao:**
+
+| estrategia | passou | tokens | tempo |
+|---|---|---|---|
+| think (budget 400, forcado a cortar) | nao (SyntaxError) | 400 | 132.1s |
+| iterative+patch (budget 400/ciclo) | nao (regrediu) | 2499 | 840.0s |
+
+**Leitura para H1:** este e o primeiro teste onde `think` genuinamente
+falha por orcamento (nao por preguica de formato ou tarefa facil
+demais) -- e `iterative` TAMBEM falhou, custando 6x mais tokens e
+tempo, e piorando o estado em vez de so nao progredir. Diferente do
+resultado anterior "iterative bate think" (`py_debug_001`), que veio
+de parar cedo numa tarefa facil, aqui nao ha vantagem nenhuma de
+iterative -- ate agora, H1 nao tem evidencia a favor em NENHUM teste
+onde a comparacao foi genuinamente justa (budget forcado abaixo do
+necessario). O ciclo curto (400 tokens) parece insuficiente para o
+modelo considerar o caso de borda (SKU novo) mesmo tendo diagnosticado
+a causa raiz certa -- sugere que o problema pode nao ser so "quantos
+tokens de thinking cabem", mas a qualidade do raciocinio dentro de um
+orcamento tao curto.
+
+**Dados brutos:** `results/py_debug_002.jsonl`.
+
+
