@@ -27,15 +27,20 @@ inteiro ficou PIOR que `think` em sucesso e custo -- ver
 qualquer coisa sobre H1 em si; o resultado ate agora fala mais sobre
 o MECANISMO DE EDICAO do que sobre a hipotese central.
 
-Atualizacao: com `patch_file` + seed automatico de `read_file`,
-`iterative` tambem PASSOU nesta tarefa -- entao agora `think` e
-`iterative` (bem configurado) empatam em sucesso, mas `iterative`
-custou ~3x mais tokens e tempo. ATE AGORA, nenhuma configuracao de
-`iterative` testada supera `think` em sucesso/custo -- ainda nao ha
-evidencia PRO H1 nesta tarefa, so evidencia de que e possivel igualar
-`think` com mais engenharia (seed, patch cirurgico). H1 precisa de
-uma tarefa onde `think` genuinamente falhe (estoura o budget antes de
-concluir) para ter chance de mostrar vantagem.
+Atualizacao: com `patch_file` + seed automatico de `read_file` +
+verificacao automatica pos-edicao (o harness roda pytest sozinho
+apos qualquer edicao bem-sucedida e encerra o loop se passar, em vez
+de depender do modelo lembrar de chamar run_tests), `iterative` PASSOU
+com 456 tokens / 126.6s / 2 chamadas -- MENOS que `think` (758 tokens
+/ 452.5s / 1 chamada) nas duas dimensoes. Primeira evidencia real a
+favor de H1 nesta tarefa. Ressalva importante: o ganho aqui veio de
+engenharia do HARNESS (parar assim que o objetivo real e atingido),
+nao de o modelo "raciocinar melhor" em ciclos -- ainda nao isolamos
+se a vantagem persiste numa tarefa onde o modelo realmente precisa
+de mais de 1 ciclo de edicao pra chegar la (aqui, o patch correto saiu
+de primeira, no ciclo 1). H1 continua precisando de uma tarefa mais
+dificil pra ser testada de forma que realmente distinga "iterar
+ajuda a pensar" de "parar cedo economiza".
 
 ---
 
@@ -50,20 +55,12 @@ concluir) para ter chance de mostrar vantagem.
 budgets; se o resultado nao melhorar em nenhuma das duas dimensoes
 (sucesso, tokens), a hipotese cai.
 
-**Status:** H2 CONFIRMADA nesta tarefa, com ressalva de eficiencia.
-Adicionando um "seed" automatico (`read_file` do arquivo relevante
-ANTES do ciclo 1, sem depender do modelo escolher isso) eliminou a
-alucinacao: `patch_file` corrigiu o bug real corretamente no ciclo 1
-e o resultado final passou em todos os testes, sem regressao --
-diferente de `write_file`, que passou (nesta forma) a nao regredir
-tambem, mas custou mais caro. Ressalva: os ciclos 2-5 desperdicaram
-chamadas tentando reaplicar o MESMO patch (ja aplicado, `OLD` nao
-batia mais) porque o agente nunca chamou `run_tests` para perceber
-que ja tinha terminado -- custou 2282 tokens / 716s / 10 chamadas
-para um resultado que, com um `done`/`run_tests` mais oportuno,
-poderia ter custado a fracao do ciclo 1 sozinho (~230 tokens, ~175s).
-Ver `docs/NEGATIVE_RESULTS.md` para o historico completo (regressao
-sem seed -> patch seguro mas hesitante sem seed -> sucesso com seed).
+**Status:** H2 CONFIRMADA nesta tarefa. `patch_file` + seed automatico
+corrigiu o bug real corretamente, sem regressao. A ressalva de
+eficiencia (ciclos desperdicados sem checar o proprio trabalho) foi
+resolvida com verificacao automatica pos-edicao no harness -- ver
+atualizacao em H1 acima: resultado final 456 tokens / 126.6s /
+2 chamadas, batendo `write_file` E `think` nas duas dimensoes.
 
 ---
 

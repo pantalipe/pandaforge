@@ -52,6 +52,28 @@ def _build_cycle_prompt(state_log: List[str], instructions: str) -> str:
     return f"<|im_start|>user\n{body}<|im_end|>\n<|im_start|>assistant\n"
 
 
+def _auto_check_after_edit(task: PyDebugTask, workdir: Path, cycle: int,
+                            state_log: List[str], verbose: bool) -> bool:
+    """
+    Roda a verificacao real (pytest) logo apos uma edicao bem-sucedida,
+    SEM depender do modelo lembrar de chamar run_tests -- descobrimos
+    (ver docs/NEGATIVE_RESULTS.md) que ele pode nao verificar e so
+    desperdicar ciclos repetindo a mesma edicao. Nao custa tokens (nao
+    e uma chamada ao modelo). Devolve True se deve encerrar o loop.
+    """
+    result = task.verify(workdir)
+    if result.passed:
+        state_log.append(
+            f"[auto, ciclo {cycle}] verificacao automatica pos-edicao: "
+            f"TODOS OS TESTES PASSARAM -- encerrando."
+        )
+        if verbose:
+            print(f"  [ciclo {cycle}] verificacao automatica: TODOS OS TESTES PASSARAM "
+                  f"-- encerrando o loop.", flush=True)
+        return True
+    return False
+
+
 def run_iterative(
     backend: LlamaServerBackend,
     task: PyDebugTask,
@@ -140,6 +162,10 @@ def run_iterative(
             except ToolError as e:
                 obs = f"ERRO: {e}"
             state_log.append(f"[ciclo {cycle}] write_file({action.path}) -> {obs}")
+            if not str(obs).startswith("ERRO") and _auto_check_after_edit(
+                task, workdir, cycle, state_log, verbose
+            ):
+                break
 
         elif action.tool == "patch_file":
             try:
@@ -150,6 +176,10 @@ def run_iterative(
             state_log.append(f"[ciclo {cycle}] patch_file({action.path}) -> {obs}")
             if verbose:
                 print(f"  [ciclo {cycle}] patch_file -> {obs}", flush=True)
+            if not str(obs).startswith("ERRO") and _auto_check_after_edit(
+                task, workdir, cycle, state_log, verbose
+            ):
+                break
 
         elif action.tool == "run_tests":
             obs = run_tests(workdir)
