@@ -166,4 +166,54 @@ orcamento tao curto.
 
 **Dados brutos:** `results/py_debug_002.jsonl`.
 
+---
+
+## 2026-09 -- Em 0.8B, o gargalo do iterative deixa de ser raciocinio e vira formato
+
+**Modelo:** `qwen3.5:0.8b` (novo -- integrado ao llama-swap para
+comparar capacidade entre tamanhos de modelo). **Tarefa:**
+`py_debug_001`, mesmos budgets usados no 4B (400/200, ate 6 ciclos,
+patch_file).
+
+**Comparacao com o 4B na mesma tarefa:**
+
+| estrategia | 4B | 0.8B |
+|---|---|---|
+| no_think | passou | falhou (diagnostico errado) |
+| think (800) | passou | falhou (cortou no limite, 800/800 tokens, sem convergir) |
+| iterative+patch | passou | falhou (protocolo de acao quebrado) |
+
+**O que aconteceu no iterative:** dos 6 ciclos, so 1 (ciclo 3) produziu
+um bloco `<action>` valido -- e foi um `run_tests`, nunca uma edicao.
+Os outros 5: ciclo 1 (400 tok, cortado) sem bloco `<action>` nenhum;
+ciclo 2 (so 24 tokens, terminou sozinho) tambem sem bloco; ciclos 4 e 5
+tentaram `patch_file` mas sem os campos `OLD`/`NEW` completos; ciclo 6
+(17 tokens) sem bloco de novo. Nenhuma edicao foi sequer TENTADA de
+forma valida -- o arquivo nunca mudou, entao tambem nao houve
+regressao (diferente do 4B com write_file).
+
+**Leitura:** no 4B, o gargalo do iterative era qualidade do raciocinio
+dentro do orcamento (diagnostico certo, fix incompleto). Em 0.8B, o
+gargalo e mais basico -- o modelo nao consegue seguir de forma
+confiavel um protocolo estruturado (tags, campos obrigatorios) sob
+pressao de orcamento curto. Isso sugere que H1 (ciclos curtos +
+estado externo) tem um piso de capacidade do modelo abaixo do qual
+nao faz sentido testar -- a estrategia certa muda de "como estruturar
+o raciocinio" para "o modelo consegue nem seguir instrucoes de
+formato". Para modelos deste porte, um protocolo mais tolerante (ou
+ainda mais simples que `<action>`/`TOOL:`/`PATH:`) provavelmente
+precisa vir antes de testar H1 de verdade.
+
+**Bug de harness corrigido no caminho:** o `no_think`/`think` desse
+modelo tambem expos um bug real -- o exemplo de formato no prompt
+usava um placeholder generico (`caminho/exato/mostrado/acima.py`), e
+o modelo pequeno **copiou o placeholder ao pe da letra** como se fosse
+um caminho real, derrubando o script inteiro (`FileNotFoundError`
+nao tratado). Corrigido: o exemplo agora usa um caminho REAL da
+propria tarefa, e `_finish()` ignora (em vez de travar em) qualquer
+caminho extraido que nao exista entre os arquivos-fonte da tarefa.
+
+**Dados brutos:** `results/py_debug_001.jsonl` (linhas com
+`model: qwen3.5:0.8b`).
+
 

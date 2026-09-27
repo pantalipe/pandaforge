@@ -70,10 +70,16 @@ def _build_prompt(task: PyDebugTask, workdir: Path) -> str:
         parts.append(f"\n```python\n# file: {rel}\n{f.read_text(encoding='utf-8')}```")
     failure = run_tests(workdir)
     parts.append(f"\nSaida da suite de testes:\n```\n{failure}\n```")
+    # Exemplo com um caminho REAL desta tarefa (nao um placeholder generico)
+    # -- um placeholder tipo 'caminho/exato/mostrado/acima.py' pode ser
+    # copiado ao pe da letra por modelos pequenos, gerando um caminho
+    # invalido. Ver docs/NEGATIVE_RESULTS.md.
+    example_path = files[0].relative_to(workdir).as_posix() if files else "src/arquivo.py"
     parts.append(
         "\nResponda com um ou mais blocos, cada um EXATAMENTE neste formato "
-        "(com as crases):\n"
-        "```python\n# file: caminho/exato/mostrado/acima.py\n"
+        "(com as crases). Use o caminho REAL do arquivo que voce esta "
+        f"corrigindo (por exemplo, '{example_path}' se for esse o arquivo):\n"
+        f"```python\n# file: {example_path}\n"
         "<conteudo COMPLETO e corrigido deste arquivo>\n```\n"
         "So inclua arquivos que precisam mudar. Nao inclua nenhum outro "
         "texto fora dos blocos -- nem explicacao, nem comentario solto."
@@ -83,16 +89,25 @@ def _build_prompt(task: PyDebugTask, workdir: Path) -> str:
 
 def _finish(strategy: str, task: PyDebugTask, workdir: Path,
             generations: List[Generation], raw_text: str) -> EpisodeResult:
-    files = _extract_files(raw_text)
-    for rel_path, content in files.items():
+    valid_paths = {p.relative_to(workdir).as_posix() for p in _iter_source_files(workdir)}
+    extracted = _extract_files(raw_text)
+    applied = {}
+    for rel_path, content in extracted.items():
+        if rel_path not in valid_paths:
+            # o modelo inventou/copiou um caminho que nao existe na tarefa
+            # (ja aconteceu com modelos pequenos -- ver NEGATIVE_RESULTS.md).
+            # Conta como extracao malsucedida para esse arquivo, nao como
+            # um crash do harness.
+            continue
         task.write_source(workdir, rel_path, content)
+        applied[rel_path] = content
     result = task.verify(workdir)
     return EpisodeResult(
         strategy=strategy,
         final_task_result=result,
         generations=generations,
-        extracted_code=files,
-        parse_ok=bool(files),
+        extracted_code=extracted,
+        parse_ok=bool(applied),
     )
 
 
