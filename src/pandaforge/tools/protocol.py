@@ -136,3 +136,84 @@ def parse_action(text: str) -> Action:
         raise ActionParseError("patch_file requer PATH, OLD e NEW (nesta ordem)")
 
     return Action(tool=tool, path=path, content=content, old=old)
+
+
+# ---------------------------------------------------------------------
+# Protocolo "simple" -- calibrado para modelos pequenos (ex.: 0.8B).
+#
+# Motivacao (ver docs/NEGATIVE_RESULTS.md): no qwen3.5:0.8b, o protocolo
+# <action>/TOOL:/PATH:/CONTENT: acima quebrou quase sempre -- o modelo
+# nao conseguia fechar a tag, nem preencher todos os campos. Duas
+# apostas de design aqui:
+#   1) menos campos: comandos de UMA linha ("ACAO: ferramenta arg"),
+#      sem tag de abertura/fechamento para read_file/run_tests/done;
+#   2) sintaxe mais familiar: para editar, marcadores de conflito estilo
+#      git (<<<<<<< / ======= / >>>>>>>) em vez de OLD:/NEW: inventados
+#      -- aposta de que aparecem MUITO mais em dados de treino (merges
+#      de git) do que qualquer esquema de tags proprio deste projeto.
+#
+# So oferece patch (nao write_file inteiro) -- reescrever o arquivo
+# todo em uma linha de comando nao faz sentido neste formato.
+# ---------------------------------------------------------------------
+
+_SIMPLE_ACAO_RE = re.compile(r"^\s*ACAO:\s*(\w+)(?:\s+(\S+))?\s*$", re.MULTILINE | re.IGNORECASE)
+_SIMPLE_PATCH_RE = re.compile(r"<{3,}\s*\n(.*?)\n={3,}\s*\n(.*?)\n>{3,}", re.DOTALL)
+
+SIMPLE_VALID_TOOLS = {"read_file", "run_tests", "patch", "done"}
+
+SIMPLE_TOOL_INSTRUCTIONS = """\
+Ferramentas disponiveis (escolha exatamente UMA por resposta):
+
+  ACAO: read_file <caminho>   -- le um arquivo
+  ACAO: run_tests             -- roda a suite de testes do projeto
+  ACAO: patch <caminho>       -- troca um trecho de um arquivo (formato abaixo)
+  ACAO: done                  -- declara que voce terminou
+
+Para read_file, run_tests e done, escreva SO a linha "ACAO: ...".
+
+Para patch, escreva a linha "ACAO: patch <caminho>" e, logo abaixo, o
+trecho antigo e o novo, separados por marcadores de conflito (como um
+conflito de merge do git):
+
+ACAO: patch src/exemplo.py
+<<<<<<<
+texto exato que existe hoje no arquivo, so o trecho que muda
+=======
+texto novo que substitui o texto acima
+>>>>>>>
+
+So UMA acao por resposta.
+"""
+
+
+def parse_action_simple(text: str) -> Action:
+    m = _SIMPLE_ACAO_RE.search(text)
+    if not m:
+        raise ActionParseError("nenhuma linha 'ACAO: <ferramenta>' encontrada na resposta")
+    tool = m.group(1).strip().lower()
+    arg = m.group(2).strip() if m.group(2) else None
+
+    if tool not in SIMPLE_VALID_TOOLS:
+        raise ActionParseError(
+            f"ferramenta desconhecida: {tool!r} (validas: {sorted(SIMPLE_VALID_TOOLS)})"
+        )
+
+    if tool == "read_file":
+        if not arg:
+            raise ActionParseError("read_file requer um caminho na mesma linha")
+        return Action(tool="read_file", path=arg)
+
+    if tool in ("run_tests", "done"):
+        return Action(tool=tool)
+
+    # tool == "patch"
+    if not arg:
+        raise ActionParseError("patch requer um caminho na mesma linha")
+    pm = _SIMPLE_PATCH_RE.search(text[m.end():])
+    if not pm:
+        raise ActionParseError(
+            "bloco <<<<<<< / ======= / >>>>>>> nao encontrado apos 'ACAO: patch'"
+        )
+    old = pm.group(1).rstrip("\n")
+    new = pm.group(2).rstrip("\n")
+    return Action(tool="patch_file", path=arg, old=old, content=new)

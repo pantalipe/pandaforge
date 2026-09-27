@@ -53,6 +53,8 @@ def main():
     ap.add_argument("--iter-cycles", type=int, default=6)
     ap.add_argument("--edit-tool", choices=["write", "patch"], default="write",
                      help="mecanismo de edicao do iterative -- 'patch' testa H2")
+    ap.add_argument("--protocol", choices=["structured", "simple"], default="structured",
+                     help="protocolo de acao do iterative -- 'simple' e calibrado para modelos pequenos")
     ap.add_argument("--model", default="qwen3:4b")
     ap.add_argument("--task", default="py_debug_001")
     ap.add_argument("--only", default="abc",
@@ -86,14 +88,16 @@ def main():
                         config={"think_budget": args.think_budget}, hypothesis=HYPOTHESIS)
 
     if "c" in args.only:
-        section(f"C) ITERATIVE (edit_tool={args.edit_tool}, budget={args.think_budget}, "
-                f"continue={args.continue_budget}, ciclos={args.iter_cycles})")
+        section(f"C) ITERATIVE (protocol={args.protocol}, edit_tool={args.edit_tool}, "
+                f"budget={args.think_budget}, continue={args.continue_budget}, "
+                f"ciclos={args.iter_cycles})")
         ep_c = run_iterative(
             backend, task, task.setup(),
             think_budget=args.think_budget,
             continue_budget=args.continue_budget,
             max_cycles=args.iter_cycles,
             edit_tool=args.edit_tool,
+            protocol=args.protocol,
         )
         report(ep_c)
         episodes.append(ep_c)
@@ -101,7 +105,8 @@ def main():
                         config={"think_budget": args.think_budget,
                                 "continue_budget": args.continue_budget,
                                 "max_cycles": args.iter_cycles,
-                                "edit_tool": args.edit_tool},
+                                "edit_tool": args.edit_tool,
+                                "protocol": args.protocol},
                         hypothesis=HYPOTHESIS)
 
     section("RESUMO")

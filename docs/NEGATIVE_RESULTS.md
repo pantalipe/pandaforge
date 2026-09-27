@@ -216,4 +216,74 @@ caminho extraido que nao exista entre os arquivos-fonte da tarefa.
 **Dados brutos:** `results/py_debug_001.jsonl` (linhas com
 `model: qwen3.5:0.8b`).
 
+---
+
+## 2026-09 -- Protocolo mais simples NAO ajudou o 0.8B (piorou, levemente)
+
+**Hipotese testada:** um protocolo de acao com menos campos (comandos
+de uma linha "ACAO: ferramenta arg") e sintaxe mais familiar
+(marcadores de conflito estilo git em vez de OLD:/NEW: inventados)
+ajudaria um modelo de 0.8B a seguir o formato de forma mais confiavel
+que o protocolo `<action>`/`TOOL:`/`PATH:` original.
+
+**Resultado:** NAO ajudou -- piorou levemente. Mesma tarefa
+(`py_debug_001`), mesmo modelo (`qwen3.5:0.8b`), mesmos budgets
+(400/200, 6 ciclos):
+
+| protocolo | passou | tokens | tempo | acoes validas |
+|---|---|---|---|---|
+| structured (`<action>`/TOOL:/PATH:) | nao | 1233 | 189.8s | 1 de 6 |
+| simple (`ACAO:` + `<<<<<<<`/`=======`/`>>>>>>>`) | nao | 1836 | 221.6s | 0 de 6 |
+
+**Modo de falha diferente e interessante:** no protocolo simples, o
+modelo emitiu corretamente a linha `ACAO: patch src/orders.py` em
+varios ciclos (confirmando que a sintaxe reduzida FOI seguida
+parcialmente), mas parou logo em seguida (12 tokens, `stop_type=
+'eos'`) sem escrever o bloco `<<<<<<<`/`=======`/`>>>>>>>` que
+deveria vir a seguir -- como se o modelo "achasse" que a linha de
+comando sozinha ja fosse uma acao completa, sem perceber que precisa
+continuar escrevendo o conteudo do patch logo abaixo. Nos ciclos que
+usaram o orcamento inteiro (400+200), o modelo as vezes nem emitiu a
+linha `ACAO:` nenhuma.
+
+**Leitura:** reduzir o numero de campos obrigatorios NAO resolve o
+problema de fundo neste tamanho de modelo -- o gargalo nao parece ser
+"campos demais para lembrar", e sim uma dificuldade mais basica de
+manter uma estrutura de varias partes (comando + bloco de conteudo)
+coerente dentro de uma unica resposta curta. Precisa de mais
+evidencia antes de generalizar, mas o resultado aponta para um teto
+de capacidade que um protocolo mais simples, sozinho, nao resolve --
+talvez precise de few-shot no proprio prompt (um exemplo completo
+preenchido, nao so a descricao do formato) ou de um budget maior por
+ciclo especificamente para este modelo.
+
+**Dados brutos:** `results/py_debug_001.jsonl` (linha
+`strategy: iterative_simple_patch`).
+
+---
+
+## 2026-09 -- Padrao do 0.8B se confirma na py_debug_002
+
+Repeti as 3 estrategias com `qwen3.5:0.8b` na `py_debug_002` (tarefa
+diferente, mais dificil) para checar se a falha generalizada era
+especifica da `py_debug_001`. NAO era -- o padrao se repete:
+
+| estrategia | py_debug_001 | py_debug_002 |
+|---|---|---|
+| no_think | falhou (diagnostico errado) | falhou (`SyntaxError`: `return` fora de funcao -- indentacao quebrada ao reescrever o arquivo inteiro) |
+| think (800) | falhou (cortou, 800/800) | falhou (cortou, 800/800, nao convergiu) |
+| iterative+patch (400/200, 6 ciclos) | falhou (1 de 6 acoes validas) | falhou (**0 de 6** acoes validas -- todos os 6 ciclos deram erro de formato) |
+
+**Leitura:** em nenhuma das 2 tarefas o `qwen3.5:0.8b` teve sucesso em
+nenhuma das 3 estrategias. O padrao "iterative piora com tarefa mais
+complexa" tambem se confirma: 1/6 acoes validas na tarefa mais facil
+vira 0/6 na mais dificil (prompt de estado maior, mais texto pra
+processar por ciclo). Isso reforca a leitura anterior: existe um piso
+de capacidade do modelo abaixo do qual a pergunta de pesquisa central
+do projeto (contexto/budget/iteracao) nao se aplica ainda -- o gargalo
+e mais basico que isso.
+
+**Dados brutos:** `results/py_debug_002.jsonl` (linhas com
+`model: qwen3.5:0.8b`).
+
 
