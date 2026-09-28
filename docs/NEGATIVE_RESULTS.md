@@ -286,4 +286,46 @@ e mais basico que isso.
 **Dados brutos:** `results/py_debug_002.jsonl` (linhas com
 `model: qwen3.5:0.8b`).
 
+---
+
+## 2026-09 -- Mapa de modelos na py_debug_001 (1 execucao por celula)
+
+| modelo | no_think | think (800) | iterative+patch (protocolo structured) |
+|---|---|---|---|
+| qwen3.5:0.8b | falhou | falhou (cortou) | falhou (1/6 acoes validas) |
+| deepseek-r1-distill-qwen:1.5b | falhou | falhou | falhou (ver abaixo) |
+| qwen3:1.7b | **passou** (345 tok) | falhou (piorou: `20.0 != 80.0`) | **passou** (3855 tok, so no ciclo 5) |
+| qwen3.5:2b | **passou** (295 tok) | falhou (cortou, 800/800) | **passou** (358 tok, 1 ciclo, sem erro de formato) |
+| qwen3:4b | falhou* | passou (758 tok) | passou (456 tok, com seed + verificacao automatica) |
+
+*a execucao de no_think do 4B e anterior as correcoes de harness
+(seed/verificacao automatica/parser) -- nao e diretamente comparavel.
+
+**Ressalva importante (variancia):** cada celula e UMA execucao. O
+fato de qwen3:1.7b e qwen3.5:2b passarem em `no_think` enquanto o 4B
+falhou nao e evidencia de que modelos menores sao melhores -- e quase
+certamente variancia entre execucoes (temperatura 0.2, uma amostra).
+Nao da para tirar conclusao de ordenacao entre modelos sem varias
+sementes por celula. O que os dados SUPORTAM com mais confianca:
+(a) o 0.8B e o DeepSeek 1.5B nao passam em nada; (b) `think` com
+budget 800 falhou em 4 de 5 modelos onde tentamos -- thinking com
+orcamento apertado parece prejudicar em vez de ajudar nessa tarefa;
+(c) `qwen3.5:2b` seguiu o protocolo do iterative sem nenhum erro de
+formato, ao contrario de todos os menores.
+
+## 2026-09 -- DeepSeek-R1-Distill-Qwen-1.5B: confunde o significado do campo TOOL
+
+Em 5 dos 6 ciclos do `iterative`, o modelo abriu e fechou o bloco
+`<action>` corretamente, mas escreveu `TOOL: apply_discount` -- o nome
+da FUNCAO que queria consertar, tirado do codigo que leu -- em vez do
+nome de uma ferramenta (`patch_file`, `read_file`...). Entendeu a
+sintaxe do protocolo, mas nao a semantica do campo. O sexto ciclo
+nem produziu bloco. Tambem nao emite `<think>` (raciocina em prosa
+solta), entao a logica de corte-e-continua nao distingue "ainda
+pensando" de "respondendo".
+Provavel correcao (nao testada): renomear o campo (ex.: `FERRAMENTA:`
+ou `ACAO:`) e/ou incluir um exemplo completo preenchido no prompt.
+
+**Dados brutos:** `results/py_debug_001.jsonl`.
+
 
