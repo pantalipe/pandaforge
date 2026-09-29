@@ -111,10 +111,15 @@ class LlamaServerBackend:
         base_url: str = DEFAULT_BASE_URL,
         model: str = DEFAULT_MODEL,
         timeout_s: float = 900.0,
+        seed: int | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_s = timeout_s
+        # seed de amostragem enviada em toda geracao (None = aleatoria,
+        # comportamento padrao do llama-server). Mude entre execucoes
+        # (backend.seed = N) para medir variancia de forma reprodutivel.
+        self.seed = seed
 
     # -----------------------------------------------------------
     # baixo nivel
@@ -224,6 +229,8 @@ class LlamaServerBackend:
             "top_p": top_p,
             "cache_prompt": cache_prompt,
         }
+        if self.seed is not None:
+            payload["seed"] = self.seed
         if stop:
             payload["stop"] = stop
         if extra:
@@ -284,6 +291,8 @@ class LlamaServerBackend:
             "top_p": top_p,
             "max_tokens": max_tokens,
         }
+        if self.seed is not None:
+            payload["seed"] = self.seed
         if extra:
             payload.update(extra)
         body, dt = self._post("/v1/chat/completions", payload)
