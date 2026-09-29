@@ -99,3 +99,102 @@ atualizacao em H1 acima: resultado final 456 tokens / 126.6s /
 **Status:** NAO TESTADA AINDA. `iterative` hoje usa "estado + ultimas
 observacoes" (janela das ultimas 6 entradas do log), nao um dos
 formatos estruturados da lista original. Falta comparar as variantes.
+
+---
+
+## H4 (tamanho do espaco de decisao)
+
+> Expor tools irrelevantes a tarefa (decoys) junto das tools reais
+> degrada desempenho e/ou custo do `iterative`, comparado ao mesmo
+> modelo/budget/tarefa vendo so as tools relevantes -- mesmo quando as
+> decoys nunca sao, de fato, a escolha certa.
+
+**Motivacao:** originou da auditoria de arquitetura do `/pask`
+(`panda-home-bot`), que expoe 12 tools de uma vez, sempre, mesmo
+quando a pergunta so precisa de uma. `iterative` hoje so testa 4 tools,
+todas relevantes -- nao ha espaco de decisao inflado pra observar esse
+efeito.
+
+**Criterio de falsificacao:** rodar a mesma tarefa/modelo/budget com
+(a) as 4 tools reais e (b) as 4 reais + N decoys plausiveis pro
+contexto de debugging (ex.: `run_lint`, `git_blame`, `search_docs`,
+`format_code` -- reais o bastante pra tentar, mas que sempre retornam
+"nao aplicavel a esta tarefa" se chamadas, custando um ciclo de
+verdade). Se accuracy e custo (tokens, tempo, ciclos ate `done`) forem
+estatisticamente indistinguiveis entre (a) e (b), a hipotese cai --
+decision space nao importa nessa faixa de tamanho.
+
+**Metrica nova (alem das ja coletadas):** taxa de escolha de decoy por
+ciclo.
+
+**Isolamento da variavel:** mesmo protocolo de saida (`<action>` de
+`protocol.py`, inalterado), mesmo modelo, mesmo budget, mesma tarefa --
+so o TAMANHO do menu de tools muda entre (a) e (b).
+
+**O que precisa ser construido:** hoje `VALID_TOOLS`/
+`TOOL_INSTRUCTIONS_*` em `tools/protocol.py` sao fixos (4 tools
+hardcoded). Precisa parametrizar para aceitar uma lista de decoys
+injetada nas instrucoes (e em `VALID_TOOLS`, senao um decoy chamado
+vira erro de parsing em vez de "escolha real disponivel mas invalida
+pra essa tarefa" -- o que mudaria o que esta sendo medido).
+
+**Status:** NAO TESTADA AINDA. Prioridade: media -- depende de
+parametrizar `protocol.py`, que hoje assume um conjunto fixo de tools.
+
+---
+
+## H5 (mecanismo de saida: tool-calling nativo vs protocolo de texto)
+
+> Tool-calling nativo (JSON estruturado via `tools=`/`tool_choice=` no
+> endpoint `/v1/chat/completions`, formatado pelo chat template real do
+> modelo) produz escolha de ferramenta mais acertada e mais rapida que
+> o protocolo de texto `<action>` customizado (`tools/protocol.py`), no
+> mesmo modelo/budget/conjunto de tools.
+
+**Motivacao:** essa e a pergunta central da auditoria de arquitetura
+do `/pask` (Arquitetura A -- tool calling tradicional -- vs B --
+structured command + harness). `/pask` ja usa tool-calling nativo em
+producao; `iterative` usa o protocolo de texto proprio, escolhido
+deliberadamente porque JSON estrito falhava no Qwen3-4B sob budget
+curto (ver docstring de `protocol.py`). H5 testa essa escolha de design
+de forma controlada, com verificacao objetiva (pytest), em vez de so
+inferir de experiencia em producao.
+
+**Criterio de falsificacao:** se a taxa de "acao valida no 1o parse" e
+o custo (tokens, tempo) forem iguais ou piores no tool-calling nativo
+comparado ao protocolo `<action>`, a hipotese cai -- e reforca a
+decisao de design ja documentada em `protocol.py`.
+
+**Pre-requisito de engenharia (achado em 2026-09-29, ver
+`panda-home-bot/docs/pask-tool-calling-jinja-fix.md`):**
+
+1. `LlamaServerBackend.chat()` (`backend/llama_server.py`) ainda NAO
+   aceita `tools=`/`tool_choice=` nem le `message.tool_calls` do
+   retorno -- so e usado hoje como baseline de `no_think`. Precisa
+   estender pra isso (espelhando o que `panda-home-bot/pagent/loop.py`
+   ja faz manualmente fora do PandaForge) e escrever uma nova
+   estrategia (`strategies/native_tools.py`, analoga a
+   `iterative.py`).
+2. **`--jinja` e obrigatorio** no `llama-swap` para o modelo usado
+   neste teste. Confirmado empiricamente no `/pask`: sem `--jinja`, o
+   `llama-server` usa um chat template generico que NAO popula
+   `message.tool_calls` -- a intencao de chamar a tool fica presa como
+   texto cru em `reasoning_content`, mesmo quando o modelo decidiu
+   corretamente. Testar H5 sem `--jinja` no modelo do experimento
+   enviesaria o resultado contra o tool-calling nativo por um motivo
+   de configuracao, nao pela hipotese em si. Hoje NENHUM modelo
+   exclusivo do PandaForge (`qwen3.5:0.8b`, `qwen3.5:2b`, `qwen3:1.7b`,
+   `deepseek-r1-distill-qwen:1.5b`) tem `--jinja` no
+   `C:\llama.cpp\config.yaml` -- precisa habilitar no(s) modelo(s)
+   escolhido(s) para este teste antes de rodar.
+
+**Isolamento da variavel:** mesmo modelo, mesmo budget, mesmo conjunto
+de tools (as 4 reais, sem decoys) -- so o MECANISMO de saida muda
+entre `<action>` de texto e `tools=` nativo. Rodar H5 antes de cruzar
+com H4 (protocolo x tamanho do menu), para nao confundir as duas
+variaveis no mesmo resultado.
+
+**Status:** NAO TESTADA AINDA. Prioridade: alta -- responde
+diretamente a pergunta que motivou a auditoria do `/pask`, mas exige
+mais trabalho de harness que H4 (novo backend + nova estrategia,
+alem do `--jinja`).

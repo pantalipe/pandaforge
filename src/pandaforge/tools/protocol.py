@@ -88,6 +88,54 @@ ULTIMA coisa dentro do bloco <action>)
 TOOL_INSTRUCTIONS = TOOL_INSTRUCTIONS_WRITE
 
 
+# ---------------------------------------------------------------------
+# Decoy tools -- para H4 (docs/HYPOTHESES.md): ferramentas que existem
+# e sao plausiveis num contexto de debugging Python, mas NUNCA sao a
+# escolha certa para as tarefas py_debug_* (todas retornam "nao
+# aplicavel" se de fato chamadas -- custando um ciclo de verdade, nao
+# um erro de parsing). O objetivo e medir se o TAMANHO do menu, por si
+# so, degrada a escolha do modelo -- nao se ele confunde uma tool nova
+# com uma valida (por isso os nomes nao se parecem com read_file/
+# write_file/patch_file/run_tests/done).
+# ---------------------------------------------------------------------
+
+DECOY_TOOLS: dict[str, str] = {
+    "run_lint": "roda um linter estatico no projeto. Nao requer PATH nem CONTENT.",
+    "git_blame": "mostra autor/commit de cada linha de um arquivo. Requer PATH.",
+    "search_docs": "busca um termo na documentacao do projeto. Nao requer PATH nem CONTENT.",
+    "format_code": "formata automaticamente o codigo do projeto. Nao requer PATH nem CONTENT.",
+}
+
+# Ponto de insercao das linhas de decoy dentro de cada bloco de
+# instrucoes -- logo apos a linha de "done", antes do resto do texto.
+_STRUCTURED_ANCHOR = "declara que voce terminou. Nao requer PATH nem CONTENT.\n"
+_SIMPLE_ANCHOR = "-- declara que voce terminou\n"
+
+
+def with_decoys(instructions: str, decoy_names: list[str], style: str = "structured") -> str:
+    """
+    Devolve `instructions` com linhas de decoy tools inseridas logo
+    apos a descricao da tool `done`. Nao modifica `instructions` no
+    lugar -- devolve uma copia nova (as constantes TOOL_INSTRUCTIONS_*
+    continuam intocadas para uso sem decoys).
+    """
+    if not decoy_names:
+        return instructions
+    unknown = [n for n in decoy_names if n not in DECOY_TOOLS]
+    if unknown:
+        raise ValueError(f"decoys desconhecidas: {unknown} (validas: {sorted(DECOY_TOOLS)})")
+    if style not in ("structured", "simple"):
+        raise ValueError(f"style invalido: {style!r} (use 'structured' ou 'simple')")
+
+    anchor = _STRUCTURED_ANCHOR if style == "structured" else _SIMPLE_ANCHOR
+    idx = instructions.index(anchor) + len(anchor)
+    if style == "structured":
+        block = "\n".join(f"  {name:12s}-- {DECOY_TOOLS[name]}" for name in decoy_names)
+    else:
+        block = "\n".join(f"  ACAO: {name:14s}-- {DECOY_TOOLS[name]}" for name in decoy_names)
+    return instructions[:idx] + block + "\n" + instructions[idx:]
+
+
 class ActionParseError(Exception):
     pass
 
@@ -100,7 +148,7 @@ class Action:
     old: str | None = None       # so patch_file: OLD
 
 
-def parse_action(text: str) -> Action:
+def parse_action(text: str, extra_valid_tools: set[str] | None = None) -> Action:
     m = _ACTION_RE.search(text)
     if not m:
         raise ActionParseError("nenhum bloco <action>...</action> encontrado na resposta")
@@ -110,8 +158,9 @@ def parse_action(text: str) -> Action:
     if not tool_m:
         raise ActionParseError("campo TOOL: ausente dentro do bloco <action>")
     tool = tool_m.group(1).strip().lower()
-    if tool not in VALID_TOOLS:
-        raise ActionParseError(f"ferramenta desconhecida: {tool!r} (validas: {sorted(VALID_TOOLS)})")
+    valid_tools = VALID_TOOLS | (extra_valid_tools or set())
+    if tool not in valid_tools:
+        raise ActionParseError(f"ferramenta desconhecida: {tool!r} (validas: {sorted(valid_tools)})")
 
     path_m = _PATH_RE.search(block)
     path = path_m.group(1).strip() if path_m else None
@@ -186,16 +235,17 @@ So UMA acao por resposta.
 """
 
 
-def parse_action_simple(text: str) -> Action:
+def parse_action_simple(text: str, extra_valid_tools: set[str] | None = None) -> Action:
     m = _SIMPLE_ACAO_RE.search(text)
     if not m:
         raise ActionParseError("nenhuma linha 'ACAO: <ferramenta>' encontrada na resposta")
     tool = m.group(1).strip().lower()
     arg = m.group(2).strip() if m.group(2) else None
 
-    if tool not in SIMPLE_VALID_TOOLS:
+    valid_tools = SIMPLE_VALID_TOOLS | (extra_valid_tools or set())
+    if tool not in valid_tools:
         raise ActionParseError(
-            f"ferramenta desconhecida: {tool!r} (validas: {sorted(SIMPLE_VALID_TOOLS)})"
+            f"ferramenta desconhecida: {tool!r} (validas: {sorted(valid_tools)})"
         )
 
     if tool == "read_file":
@@ -206,14 +256,18 @@ def parse_action_simple(text: str) -> Action:
     if tool in ("run_tests", "done"):
         return Action(tool=tool)
 
-    # tool == "patch"
-    if not arg:
-        raise ActionParseError("patch requer um caminho na mesma linha")
-    pm = _SIMPLE_PATCH_RE.search(text[m.end():])
-    if not pm:
-        raise ActionParseError(
-            "bloco <<<<<<< / ======= / >>>>>>> nao encontrado apos 'ACAO: patch'"
-        )
-    old = pm.group(1).rstrip("\n")
-    new = pm.group(2).rstrip("\n")
-    return Action(tool="patch_file", path=arg, old=old, content=new)
+    if tool == "patch":
+        if not arg:
+            raise ActionParseError("patch requer um caminho na mesma linha")
+        pm = _SIMPLE_PATCH_RE.search(text[m.end():])
+        if not pm:
+            raise ActionParseError(
+                "bloco <<<<<<< / ======= / >>>>>>> nao encontrado apos 'ACAO: patch'"
+            )
+        old = pm.group(1).rstrip("\n")
+        new = pm.group(2).rstrip("\n")
+        return Action(tool="patch_file", path=arg, old=old, content=new)
+
+    # decoy tool (extra_valid_tools): sem argumentos/campos especiais --
+    # o harness decide o que fazer com ela (ver iterative.py).
+    return Action(tool=tool, path=arg)

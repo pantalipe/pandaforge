@@ -45,6 +45,7 @@ from pandaforge.tools.protocol import (
     TOOL_INSTRUCTIONS_WRITE,
     TOOL_INSTRUCTIONS_PATCH,
     SIMPLE_TOOL_INSTRUCTIONS,
+    with_decoys,
 )
 from pandaforge.strategies.single_shot import EpisodeResult, _iter_source_files
 
@@ -64,6 +65,7 @@ def _build_cycle_prompt(objective: str, state_log: List[str], instructions: str)
 def _get_action(
     backend: LlamaServerBackend, prompt: str, parser, close_tag: str,
     think_budget: int, continue_budget: int, cycle: int, verbose: bool,
+    extra_valid_tools: set[str] | None = None,
 ) -> tuple[Optional[Action], Optional[str], list]:
     """
     Chama o modelo, tenta parsear a acao; se cortou pelo orcamento e o
@@ -79,7 +81,7 @@ def _get_action(
               f"{gen.tokens_predicted} tok, stop_type={gen.stop_type!r}", flush=True)
 
     try:
-        return parser(text), None, generations
+        return parser(text, extra_valid_tools=extra_valid_tools), None, generations
     except ActionParseError as e:
         if not gen.hit_budget_limit:
             return None, str(e), generations
@@ -93,7 +95,7 @@ def _get_action(
         print(f"  [ciclo {cycle}] chamada 2 (continuacao): {gen2.wall_time_s:.1f}s, "
               f"{gen2.tokens_predicted} tok, stop_type={gen2.stop_type!r}", flush=True)
     try:
-        return parser(text), None, generations
+        return parser(text, extra_valid_tools=extra_valid_tools), None, generations
     except ActionParseError as e2:
         return None, str(e2), generations
 
@@ -108,6 +110,7 @@ def run_iterative(
     edit_tool: str = "write",   # "write" ou "patch" -- so vale para protocol="structured"
     protocol: str = "structured",   # "structured" ou "simple"
     seed_files: List[str] | None = None,
+    decoy_tools: List[str] | None = None,  # H4 (docs/HYPOTHESES.md)
     verbose: bool = True,
 ) -> EpisodeResult:
     if protocol not in ("structured", "simple"):
@@ -115,21 +118,27 @@ def run_iterative(
     if protocol == "simple":
         if edit_tool == "write":
             raise ValueError("protocol='simple' so suporta patch (edit_tool='write' nao existe nele)")
-        instructions = SIMPLE_TOOL_INSTRUCTIONS
+        instructions = with_decoys(SIMPLE_TOOL_INSTRUCTIONS, decoy_tools or [], style="simple")
         parser = parse_action_simple
         close_tag = ""  # nao forca fechamento -- deixa o modelo terminar o patch naturalmente
         strategy_name = "iterative_simple_patch"
     else:
         if edit_tool not in ("write", "patch"):
             raise ValueError(f"edit_tool invalido: {edit_tool!r} (use 'write' ou 'patch')")
-        instructions = TOOL_INSTRUCTIONS_PATCH if edit_tool == "patch" else TOOL_INSTRUCTIONS_WRITE
+        base_instructions = TOOL_INSTRUCTIONS_PATCH if edit_tool == "patch" else TOOL_INSTRUCTIONS_WRITE
+        instructions = with_decoys(base_instructions, decoy_tools or [], style="structured")
         parser = parse_action
         close_tag = "\n</action>\n"
         strategy_name = f"iterative_{edit_tool}"
 
+    if decoy_tools:
+        strategy_name += f"_decoys{len(decoy_tools)}"
+    extra_valid_tools = set(decoy_tools) if decoy_tools else None
+
     generations = []
     state_log: List[str] = []
     all_cycles_parsed = True
+    n_decoy_calls = 0
 
     if seed_files is None:
         seed_files = [p.relative_to(workdir).as_posix() for p in _iter_source_files(workdir)]
@@ -149,6 +158,7 @@ def run_iterative(
         action, err, cycle_gens = _get_action(
             backend, prompt, parser, close_tag,
             think_budget, continue_budget, cycle, verbose,
+            extra_valid_tools=extra_valid_tools,
         )
         generations.extend(cycle_gens)
 
@@ -208,6 +218,16 @@ def run_iterative(
             state_log.append(f"[ciclo {cycle}] done() -- agente declarou que terminou.")
             break
 
+        else:
+            # decoy tool (H4, docs/HYPOTHESES.md): existe no menu, o
+            # parser aceitou, mas nao faz nada de verdade -- custa um
+            # ciclo real, igual custaria no /pask escolher a tool errada.
+            n_decoy_calls += 1
+            obs = "ERRO: ferramenta nao disponivel para esta tarefa."
+            state_log.append(f"[ciclo {cycle}] {action.tool}() -> {obs}")
+            if verbose:
+                print(f"  [ciclo {cycle}] DECOY escolhida: {action.tool} -> {obs}", flush=True)
+
     result = task.verify(workdir)
     return EpisodeResult(
         strategy=strategy_name,
@@ -215,6 +235,7 @@ def run_iterative(
         generations=generations,
         extracted_code=None,
         parse_ok=all_cycles_parsed,
+        n_decoy_calls=n_decoy_calls,
     )
 
 
