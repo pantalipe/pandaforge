@@ -27,31 +27,45 @@ inteiro ficou PIOR que `think` em sucesso e custo -- ver
 qualquer coisa sobre H1 em si; o resultado ate agora fala mais sobre
 o MECANISMO DE EDICAO do que sobre a hipotese central.
 
-Atualizacao (py_debug_002, teste calibrado de verdade): usamos a
-calibracao do proprio `think` (precisou de 903 tokens pra ter sucesso
-com budget generoso) pra escolher `think_budget=400` -- ABAIXO do
-necessario -- como primeiro teste genuinamente justo: sera que
-`iterative`, com o MESMO orcamento por ciclo, resolve onde o
-single-shot e forcado a cortar? `think` cortou de fato (SyntaxError,
-arquivo truncado). `iterative` (patch, seed, verificacao automatica)
-TAMBEM falhou -- pior ainda, REGREDIU (3 testes falhando em vez de
-2), porque o ciclo 1 diagnosticou a causa raiz certa mas implementou
-um fix incompleto (`+=` sem tratar SKU novo) sob pressao do orcamento
-curto, e os ciclos seguintes nunca corrigiram isso. Custou 2499 tokens
-e 840s contra 400 tokens e 132s do `think` que so falhou (nao
-regrediu). Ver `docs/NEGATIVE_RESULTS.md` para o detalhe completo.
+**Conclusao parcial, 2 tarefas testadas (dados de 1 execucao):** H1
+tinha UM resultado a favor (py_debug_001, mas que vinha de "parar
+cedo economiza", nao de "iterar ajuda a pensar melhor") e UM
+resultado claramente contra (py_debug_002, no teste mais justo ate
+entao -- budget forcado abaixo do necessario). Baseado em 1 execucao
+por celula, a hipotese parecia nao se sustentar.
 
-**Conclusao parcial, 2 tarefas testadas:** H1 tem UM resultado a favor
-(py_debug_001, mas que veio de "parar cedo economiza", nao de
-"iterar ajuda a pensar melhor") e UM resultado claramente contra
-(py_debug_002, no teste mais justo ate agora -- budget forcado abaixo
-do necessario). A hipotese, na forma atual, NAO esta se sustentando:
-quando o orcamento por ciclo e curto o bastante pra realmente cortar
-o raciocinio do single-shot, o MESMO orcamento curto tambem nao da
-pro `iterative` raciocinar bem o suficiente por ciclo -- ele so
-acumula erros ao longo de varios ciclos em vez de um so. Precisa de
-mais tarefas/seeds antes de declarar H1 falsificada, mas o padrao ate
-agora aponta nessa direcao.
+**Atualizacao decisiva (py_debug_001, qwen3:4b E qwen3.5:2b, 5
+sementes por celula):** a comparacao de 1 execucao era enganosa por
+falta de amostra. Com 5 sementes:
+
+| modelo | no_think | iterative+patch (seed + verificacao automatica) |
+|---|---|---|
+| qwen3:4b | **0/5** (0%), 350 tok, 127.4s | **5/5** (100%), 674 tok, 199.2s |
+| qwen3.5:2b | 4/5 (80%), 314 tok, 60.7s | 4/5 (80%), 2166 tok, 338.6s |
+
+No `qwen3:4b`, `no_think` FALHA de forma consistente (nao e sorte --
+e 0 em 5, sempre com o mesmo numero exato de tokens, sugerindo que o
+modelo converge pro mesmo raciocinio raso raso independente da
+semente) e `iterative` ACERTA de forma consistente (5 em 5), custando
+menos do que o dobro dos tokens. **Esta e a primeira evidencia
+robusta (multi-seed) a favor de H1** -- mas com uma ressalva
+importante: no `qwen3.5:2b`, que ja acerta 80% via `no_think` sozinho,
+`iterative` nao melhora a taxa de sucesso (mesma 4/5) e custa ~7x mais
+tokens. Ou seja: **o beneficio do `iterative` parece concentrado em
+modelos onde a estrategia direta falha de forma consistente** -- ele
+nao e uma melhoria universal, e pode ser puro desperdicio quando
+`no_think` ja funciona bem.
+
+**Licao metodologica:** os resultados de 1 execucao anteriores
+(incluindo a "conclusao parcial" acima, baseada em py_debug_002 com 1
+seed) devem ser tratados como preliminares ate serem repetidos com
+varias sementes -- o padrao mudou de "H1 nao se sustenta" para "H1 se
+sustenta condicionalmente" so ao adicionar amostra.
+
+**Proximo passo:** repetir py_debug_002 (a tarefa mais dificil) com 5
+sementes nos mesmos 2 modelos, pra confirmar se o padrao "iterative
+ajuda so quando no_think falha consistentemente" se mantem numa
+tarefa onde ja vimos os dois falharem.
 
 ---
 
