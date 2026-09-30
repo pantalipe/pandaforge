@@ -237,3 +237,34 @@ sempre deixa algum orcamento de pensamento antes da acao).
 continuacao equivalente ao de `complete()`, para o caso
 `disable_thinking=False` nao ficar estruturalmente em desvantagem
 quando alguem quiser medir native tool-calling COM thinking ligado.
+
+**Bateria 2026-09-30** (`scripts/run_h4_h5_battery.py`,
+`results/py_debug_001.jsonl`, qwen3:4b, max_cycles=4):
+
+```
+celula                    sucesso  avg tokens  avg wall(s)
+iterative_nodecoy           3/3       530         190.1
+iterative_decoys3           3/3       425         145.6
+native_nothink_nodecoy      2/3        68         103.9
+native_nothink_decoys3      3/3        80         101.0
+```
+
+`n_format_errors=0` nas 12 rodadas -- o fix `--jinja` + `disable_thinking`
+se sustenta sob repeticao, nao foi so o smoke test. `n_decoy_calls=0`
+nas 6 rodadas com decoy (ambas as estrategias) -- H4 nao aparece nesta
+tarefa: `py_debug_001` e clara/facil demais pro qwen3:4b cogitar uma
+decoy. Precisa de uma tarefa mais ambigua ou um modelo mais fraco para
+H4 ter alguma chance de mostrar efeito.
+
+**Investigacao da falha (seed=1, `native_nothink_nodecoy`):** as
+generations gravadas no JSONL mostram o agente chamando `read_file`
+uma vez e, no ciclo seguinte, `done` direto -- nunca tentou
+`patch_file`. Rechecagem com 4 sementes novas (10-13) na mesma celula:
+**4/4 passaram**, todas com o padrao normal `read_file` -> `patch_file`
+(84 tokens, identico as sementes 0 e 2 da bateria original). Total
+refinado: **6/7 (~86%)** para `native_nothink_nodecoy` -- a falha da
+seed=1 parece azar pontual dessa semente, nao um padrao sistematico de
+"le uma vez e desiste". Ainda assim, o mecanismo existe e e plausivel
+(desligar o thinking remove o espaco de raciocinio entre ler o arquivo
+e decidir a acao) -- vale reobservar se aparecer de novo com mais
+sementes ou noutras tarefas.
