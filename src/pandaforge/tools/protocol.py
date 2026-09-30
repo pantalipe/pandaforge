@@ -140,6 +140,73 @@ class ActionParseError(Exception):
     pass
 
 
+# ---------------------------------------------------------------------
+# Schemas de tool-calling nativo -- para H5 (docs/HYPOTHESES.md):
+# mesmas ferramentas/descricoes de DECOY_TOOLS acima, so que no formato
+# JSON Schema da API OpenAI-compatible (`tools=`), em vez do bloco de
+# texto injetado nas instrucoes do protocolo "structured"/"simple".
+# Mantido no mesmo modulo para as descricoes nao divergirem entre H4 e
+# H5 -- se decoy_names for igual nos dois lados, o "menu" e o mesmo.
+# ---------------------------------------------------------------------
+
+def _schema(name: str, description: str, properties: dict | None = None,
+            required: list[str] | None = None) -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties or {},
+                "required": required or [],
+            },
+        },
+    }
+
+
+REAL_TOOL_SCHEMAS_BY_EDIT: dict[str, list[dict]] = {
+    "write": [
+        _schema("read_file", "Le o conteudo de um arquivo do projeto.",
+                {"path": {"type": "string", "description": "caminho relativo do arquivo"}},
+                ["path"]),
+        _schema("write_file", "Sobrescreve um arquivo inteiro com o conteudo dado.",
+                {"path": {"type": "string"}, "content": {"type": "string"}},
+                ["path", "content"]),
+        _schema("run_tests", "Roda a suite de testes (pytest) do projeto."),
+        _schema("done", "Declara que a tarefa esta concluida."),
+    ],
+    "patch": [
+        _schema("read_file", "Le o conteudo de um arquivo do projeto.",
+                {"path": {"type": "string", "description": "caminho relativo do arquivo"}},
+                ["path"]),
+        _schema("patch_file", "Substitui um trecho exato de um arquivo por outro.",
+                {"path": {"type": "string"},
+                 "old": {"type": "string", "description": "trecho exato a ser substituido"},
+                 "content": {"type": "string", "description": "novo trecho"}},
+                ["path", "old", "content"]),
+        _schema("run_tests", "Roda a suite de testes (pytest) do projeto."),
+        _schema("done", "Declara que a tarefa esta concluida."),
+    ],
+}
+
+
+def decoy_tool_schemas(decoy_names: list[str]) -> list[dict]:
+    unknown = [n for n in decoy_names if n not in DECOY_TOOLS]
+    if unknown:
+        raise ValueError(f"decoys desconhecidas: {unknown} (validas: {sorted(DECOY_TOOLS)})")
+    return [_schema(name, DECOY_TOOLS[name]) for name in decoy_names]
+
+
+def tool_schemas_for(edit_tool: str, decoy_names: list[str] | None = None) -> list[dict]:
+    """Monta a lista `tools=` completa (reais + decoys) para native_tools.py."""
+    if edit_tool not in REAL_TOOL_SCHEMAS_BY_EDIT:
+        raise ValueError(f"edit_tool invalido: {edit_tool!r} (use 'write' ou 'patch')")
+    schemas = list(REAL_TOOL_SCHEMAS_BY_EDIT[edit_tool])
+    schemas.extend(decoy_tool_schemas(decoy_names or []))
+    return schemas
+
+
 @dataclass
 class Action:
     tool: str

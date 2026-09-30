@@ -91,6 +91,7 @@ class Generation:
 
     wall_time_s: float = 0.0      # tempo de parede medido por nos (inclui rede)
     reasoning_content: str = ""   # so chat(): texto de pensamento separado (Qwen3.5+)
+    tool_calls: list[dict] | None = None  # so chat() com tools=: message.tool_calls cru
     raw: dict[str, Any] = field(default_factory=dict)  # resposta crua, p/ debug/auditoria
 
     @property
@@ -268,12 +269,25 @@ class LlamaServerBackend:
         max_tokens: int = 2048,
         temperature: float = 0.5,
         top_p: float = 0.9,
+        tools: list[dict] | None = None,
+        tool_choice: str | dict | None = None,
         extra: dict | None = None,
     ) -> Generation:
         """
         Chama /v1/chat/completions (o mesmo endpoint do
         pandagent.PandaClient.ask()). Nao ha `stop_type` nem controle
         de corte no meio do thinking aqui -- para isso, use complete().
+
+        `tools`/`tool_choice`: mesmo formato da API OpenAI (lista de
+        schemas `{"type": "function", "function": {...}}` e "auto"/
+        "none"/dict). Usado pela estrategia `native_tools` (H5,
+        docs/HYPOTHESES.md). REQUER `--jinja` no llama-swap para o
+        modelo -- sem isso, a intencao de chamar a tool fica presa em
+        `reasoning_content` como texto cru e `message.tool_calls` nunca
+        vem populado (confirmado empiricamente, ver panda-home-bot/
+        docs/pask-tool-calling-jinja-fix.md). qwen3:4b ja tem --jinja
+        habilitado (compartilhado com o /pask); outros modelos do
+        PandaForge ainda nao.
 
         `extra` deixa passar campos extras do payload -- em particular
         `chat_template_kwargs: {"enable_thinking": False}`, necessario
@@ -293,6 +307,9 @@ class LlamaServerBackend:
         }
         if self.seed is not None:
             payload["seed"] = self.seed
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = tool_choice or "auto"
         if extra:
             payload.update(extra)
         body, dt = self._post("/v1/chat/completions", payload)
@@ -316,5 +333,6 @@ class LlamaServerBackend:
             predicted_per_second=timings.get("predicted_per_second", 0.0),
             wall_time_s=dt,
             reasoning_content=reasoning_content,
+            tool_calls=message.get("tool_calls"),
             raw=body,
         )

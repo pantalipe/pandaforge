@@ -33,7 +33,8 @@ class EpisodeResult:
     generations: List[Generation]
     extracted_code: Optional[Dict[str, str]] = None
     parse_ok: bool = True
-    n_decoy_calls: int = 0  # H4 (docs/HYPOTHESES.md): sempre 0 fora do iterative
+    n_decoy_calls: int = 0  # H4 (docs/HYPOTHESES.md): sempre 0 fora do iterative/native_tools
+    n_format_errors: int = 0  # H5: ciclo sem acao valida (parse falhou / sem tool_calls)
 
     @property
     def total_tokens(self) -> int:

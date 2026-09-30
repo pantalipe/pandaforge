@@ -139,6 +139,7 @@ def run_iterative(
     state_log: List[str] = []
     all_cycles_parsed = True
     n_decoy_calls = 0
+    n_format_errors = 0
 
     if seed_files is None:
         seed_files = [p.relative_to(workdir).as_posix() for p in _iter_source_files(workdir)]
@@ -164,6 +165,7 @@ def run_iterative(
 
         if action is None:
             all_cycles_parsed = False
+            n_format_errors += 1
             state_log.append(
                 f"[ciclo {cycle}] ERRO DE FORMATO: {err}. Siga o formato exatamente."
             )
@@ -236,6 +238,7 @@ def run_iterative(
         extracted_code=None,
         parse_ok=all_cycles_parsed,
         n_decoy_calls=n_decoy_calls,
+        n_format_errors=n_format_errors,
     )
 
 

@@ -65,6 +65,7 @@ def record_episode(
         "n_calls": episode.n_calls,
         "parse_ok": episode.parse_ok,
         "n_decoy_calls": getattr(episode, "n_decoy_calls", 0),  # H4 (docs/HYPOTHESES.md)
+        "n_format_errors": getattr(episode, "n_format_errors", 0),  # H5 (docs/HYPOTHESES.md)
         "generations": [_generation_to_dict(g) for g in episode.generations],
         "notes": notes,
     }

@@ -198,3 +198,42 @@ variaveis no mesmo resultado.
 diretamente a pergunta que motivou a auditoria do `/pask`, mas exige
 mais trabalho de harness que H4 (novo backend + nova estrategia,
 alem do `--jinja`).
+
+**Atualizacao 2026-09-29 (engenharia + smoke test):**
+`backend/llama_server.py::chat()` estendido com `tools=`/`tool_choice=`
+e `Generation.tool_calls`; nova estrategia `strategies/native_tools.py`
+implementada, espelhando `iterative.py` (mesmos seeds, mesmo
+`edit_tool`, mesmos `decoy_tools`, mesma logica de auto-check pos-
+edicao). Schemas nativos ficam em `tools/protocol.py::tool_schemas_for()`,
+reaproveitando as descricoes de `DECOY_TOOLS` -- H4 e H5 usam o mesmo
+"menu" de decoys por construcao.
+
+**Achado critico durante o smoke test:** `chat()` NAO tem o truque de
+"corte no orcamento + continuacao forcada" que `complete()` tem em
+`iterative.py`. Primeira tentativa (thinking ligado, `max_tokens=300`,
+py_debug_001, decoys=3): as duas chamadas bateram `finish_reason=
+'length'` ainda pensando, sem nunca emitir `tool_calls` -- o ciclo
+inteiro se perdeu (`n_format_errors=2`, tarefa nao resolvida). Isso
+NAO e evidencia de que tool-calling nativo "erra mais"; e uma
+assimetria de engenharia entre as duas estrategias que precisa ser
+controlada antes de comparar.
+
+Mitigacao aplicada: `run_native_tools(..., disable_thinking=True)`,
+que passa `chat_template_kwargs: {"enable_thinking": False}` (mesmo
+mecanismo ja usado para Qwen3.5+ no resto do projeto). Reteste
+identico com essa flag: **passou de primeira**, `n_format_errors=0`,
+`n_decoy_calls=0`, **84 tokens totais e ~92s** -- contra 356 tokens e
+~230s da mesma tarefa/decoys/edit_tool rodada em `iterative.py` (ver
+commit do smoke test de H4). Amostra de n=1 em cada lado, nao prova
+nada sozinha, mas e um resultado forte o suficiente para priorizar
+rodar a bateria de sementes de H5 com `disable_thinking=True` como
+configuracao padrao -- e, se quiser isolar so o efeito do
+tool-calling nativo (sem a variavel de desligar o pensamento),
+rodar tambem `iterative.py` com thinking desligado do lado
+"structured" para um comparativo mais limpo (`iterative.py` hoje
+sempre deixa algum orcamento de pensamento antes da acao).
+
+**TODO em aberto:** dar a `chat()`/`native_tools.py` um mecanismo de
+continuacao equivalente ao de `complete()`, para o caso
+`disable_thinking=False` nao ficar estruturalmente em desvantagem
+quando alguem quiser medir native tool-calling COM thinking ligado.
