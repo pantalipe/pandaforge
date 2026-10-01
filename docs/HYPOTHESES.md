@@ -141,6 +141,22 @@ pra essa tarefa" -- o que mudaria o que esta sendo medido).
 **Status:** NAO TESTADA AINDA. Prioridade: media -- depende de
 parametrizar `protocol.py`, que hoje assume um conjunto fixo de tools.
 
+**Atualizacao 2026-09-30 (resultado negativo, 2 modelos):** rodadas
+com decoy em `qwen3:4b` (6 episodios, `py_debug_001`) e `qwen3.5:0.8b`
+(6 episodios, mesma tarefa) -- **zero** escolhas de decoy em 12
+episodios totais, nas 2 estrategias (`iterative` e `native_tools`).
+Mesmo o modelo de 0.8B, que falha boa parte do tempo com o protocolo
+de texto, nunca confundiu `run_lint`/`git_blame`/`search_docs` com uma
+das 4 tools reais. Resultado negativo honesto (nao "falta testar
+mais"): decoys semanticamente bem distintas das tools reais nao
+parecem estressar a decisao do modelo, independente de tamanho ou
+mecanismo, nesta tarefa. Ver `NEGATIVE_RESULTS.md` para a entrada
+completa. Se quiser continuar H4, o proximo passo provavelmente nao e
+"mais decoys iguais" -- e decoys **confundiveis** (nomes/descricoes
+parecidos com as tools reais, ex. uma `format_file` perto de
+`write_file`), ou uma tarefa mais ambigua onde mais de uma tool
+pareça plausivel.
+
 ---
 
 ## H5 (mecanismo de saida: tool-calling nativo vs protocolo de texto)
@@ -237,6 +253,35 @@ sempre deixa algum orcamento de pensamento antes da acao).
 continuacao equivalente ao de `complete()`, para o caso
 `disable_thinking=False` nao ficar estruturalmente em desvantagem
 quando alguem quiser medir native tool-calling COM thinking ligado.
+
+**Atualizacao 2026-09-30 (qwen3.5:0.8b -- achado forte):** o mesmo
+`--jinja` habilitado em `qwen3.5:0.8b` (ver `C:\llama.cpp\config.yaml`)
+e a mesma bateria rodada nele. Resultado:
+
+```
+celula                    sucesso  avg tokens  avg wall(s)
+iterative_nodecoy           0/3       1369        160.3
+iterative_decoys3           0/3       1187        153.0
+native_nothink_nodecoy      3/3        244         45.4
+native_nothink_decoys3      3/3        251         52.4
+```
+
+Esse e o mesmo modelo que o `NEGATIVE_RESULTS.md` ja documentava
+falhando em TODAS as estrategias de texto (`no_think`/`think`/
+`iterative`) nas duas tarefas (`py_debug_001` e `py_debug_002`) --
+diagnostico ate correto as vezes, mas incapaz de seguir o protocolo
+estruturado de texto de forma confiavel. Com tool-calling nativo
+(`disable_thinking=True`), o MESMO modelo resolve a tarefa **3/3**,
+gastando menos tokens e tempo que o `iterative` do `qwen3:4b` (modelo
+5x maior). Isso sugere fortemente que, pelo menos nesta tarefa, o
+gargalo documentado nao era capacidade de decisao do modelo -- era o
+modelo nao conseguir produzir a sintaxe do protocolo de texto. Tool-
+calling nativo (onde o motor de inferencia garante a estrutura,
+nao o modelo) parece remover esse gargalo inteiramente. Precisa de
+mais tarefas/sementes antes de generalizar, mas e a evidencia mais
+forte ate agora a favor da pergunta central da auditoria do `/pask`:
+trocar o mecanismo de saida pode valer mais, para modelos pequenos,
+do que qualquer ajuste de budget/protocolo de texto.
 
 **Bateria 2026-09-30** (`scripts/run_h4_h5_battery.py`,
 `results/py_debug_001.jsonl`, qwen3:4b, max_cycles=4):

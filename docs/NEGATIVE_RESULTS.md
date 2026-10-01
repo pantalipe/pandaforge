@@ -328,4 +328,40 @@ ou `ACAO:`) e/ou incluir um exemplo completo preenchido no prompt.
 
 **Dados brutos:** `results/py_debug_001.jsonl`.
 
+---
+
+## 2026-09-30 -- H4: decoys semanticamente distintas nunca sao escolhidas (2 modelos, 2 mecanismos)
+
+**Hipotese testada (H4, `HYPOTHESES.md`):** expor tools decoy
+(`run_lint`, `git_blame`, `search_docs`) junto das 4 tools reais
+degradaria a escolha do modelo, so pelo tamanho do menu aumentar.
+
+**Config:** `py_debug_001`, `edit_tool=patch`, 3 sementes por celula,
+em `qwen3:4b` e `qwen3.5:0.8b`, nas 2 estrategias (`iterative` e
+`native_tools` com `disable_thinking=True`).
+
+**Resultado:** `n_decoy_calls=0` em **12 de 12 episodios** com decoy
+(6 no 4B, 6 no 0.8B). Nenhuma escolha errada, nenhuma vez, em nenhum
+tamanho de modelo testado nem em nenhum dos 2 mecanismos de saida.
+
+**Leitura:** isto NAO confirma que "tamanho do menu nunca importa" --
+confirma que, com decoys **semanticamente bem distintas** das tools
+reais (nomes e descricoes que nao se parecem com `read_file`/
+`patch_file`/`run_tests`/`done`), nem um modelo de 0.8B (que ja falha
+boa parte do tempo por outros motivos) chega a cogitar uma delas. O
+"espaco de decisao" nao parece ser o gargalo quando as opcoes sao
+claramente diferenciaveis -- a questao original do `/pask` (12 tools
+sempre visiveis) pode estar mais ligada a custo de contexto/tokens
+(cada tool nao usada ainda ocupa espaco no prompt) do que a risco real
+de escolha errada, PELO MENOS nesta faixa de tamanho de menu (4 reais
++ 3 decoys = 7 opcoes -- ainda bem menor que as 12 do `/pask`).
+
+**Proximo teste, se for continuar H4:** decoys **confundiveis** (nomes/
+descricoes parecidos com as tools reais) em vez de obviamente
+diferentes, e/ou um menu maior (10+ decoys, mais perto da escala real
+do `/pask`), antes de generalizar que decision-space nao importa.
+
+**Dados brutos:** `results/py_debug_001.jsonl` (`hypothesis:
+H4xH5-battery-2026-09-30`, celulas `*_decoys3` em ambos os modelos).
+
 
