@@ -313,3 +313,78 @@ seed=1 parece azar pontual dessa semente, nao um padrao sistematico de
 (desligar o thinking remove o espaco de raciocinio entre ler o arquivo
 e decidir a acao) -- vale reobservar se aparecer de novo com mais
 sementes ou noutras tarefas.
+
+---
+
+## H6 (o que realmente limita a profundidade de cadeia resolvivel)
+
+> O numero de passos (tool calls em sequencia) de uma tarefa NAO e,
+> sozinho, o que determina se um modelo pequeno consegue resolve-la.
+> Pelo menos 3 variaveis, normalmente misturadas numa unica tarefa
+> real, pesam de forma independente: (a) clareza da intencao -- o
+> quanto a tarefa deixa obvio qual tool usar em seguida; (b) ambiguidade
+> do resultado intermediario -- o quanto o modelo precisa confiar num
+> resultado parcial (vs. poder verifica-lo) antes de agir sobre ele; e
+> (c) tamanho do contexto -- quantas tools/quanto texto de sistema o
+> modelo precisa segurar na cabeca entre um passo e outro.
+
+**Motivacao:** observado em producao real no `/pask`, nao no
+PandaForge. `qwen3.5:0.8b` resolve `read_file -> patch_file` (2
+passos, PandaForge, py_debug_001) em 6/7 execucoes, mas falha
+`find_file -> send_file_telegram` (tambem 2 passos, `/pask` real,
+pedido "me mande o ultimo video do rotman"): encontra o arquivo certo
+de primeira, mas em vez de confiar no resultado e chamar
+`send_file_telegram`, fica repetindo `list_dir` manualmente (4 vezes)
+ate estourar `MAX_ITERATIONS`. Mesma profundidade (2 passos), mesmo
+mecanismo de saida (tool-calling nativo), resultado oposto -- "numero
+de passos" nao explica a diferenca. As 3 variaveis acima SAO as
+diferencas candidatas entre os dois cenarios: o PandaForge tem
+intencao quase entregue de bandeja ("conserte o bug" -> so
+`patch_file` faz sentido depois de ler), resultado de `read_file`
+sempre inequivoco, e so 4 tools; o `/pask` real exige inferir "mande"
+= `send_file_telegram`, o resultado de `find_file` pode nao ter
+parecido confiavel pro modelo, e ha 12 tools + indice de ~19 projetos
+no contexto.
+
+**Criterio de falsificacao:** construir uma suite de tarefas
+sinteticas que variam SO uma das 3 variaveis por vez (mesma
+profundidade de cadeia, ex. sempre 2 passos), rodar em pelo menos 2
+modelos (um que ja falha tarefas compostas no `/pask` real e um que
+nao falha) com varias sementes. Se nenhuma das 3 variaveis, isolada,
+mudar accuracy/custo de forma consistente -- e so a profundidade bruta
+(1 vs 2 vs 3 passos) importar, independente de (a)/(b)/(c) -- a
+hipotese cai a favor da explicacao mais simples ("e so numero de
+passos mesmo").
+
+**Design do experimento (esboco, ainda nao implementado):**
+- Eixo profundidade: tarefas de 1, 2 e 3 passos (reaproveitar
+  `py_debug_001`/`002` como profundidade 2; criar uma variante de
+  profundidade 1 e uma de 3).
+- Eixo (a) clareza: duas versoes do MESMO objective -- uma que nomeia
+  o resultado esperado de forma quase imperativa ("conserte o bug em
+  X"), outra que exige um passo de inferencia pro modelo decidir qual
+  tool corresponde ao pedido ("cuide do problema em X" sem dizer
+  "conserte").
+- Eixo (b) ambiguidade do resultado intermediario: variar se a tool
+  de busca/leitura devolve 1 resultado limpo vs. N resultados
+  plausiveis (forcando o modelo a escolher/confiar em vez de so
+  seguir).
+- Eixo (c) tamanho do contexto: reaproveitar a infra de decoys de H4
+  (`tool_schemas_for`/`DECOY_TOOLS`) como proxy direto desse eixo --
+  ja temos o mecanismo, falta cruzar com os outros dois.
+
+**O que precisa ser construido:** pelo menos uma tarefa nova de
+profundidade 1 e uma de profundidade 3 no formato `PyDebugTask`
+(`tasks/suite/`), mais uma variante "objective ambiguo" de cada
+tarefa existente, mais uma tool de busca sintetica com resultado
+ambiguo controlavel (N candidatos em vez de 1). E bem mais trabalho de
+construcao de tarefas que H4/H5 -- nenhum dos dois exigiu tarefas
+novas.
+
+**Status:** NAO TESTADA AINDA, so motivada por uma observacao de
+producao (n=1 de cada lado -- o par de casos do `/pask` e sugestivo,
+nao e dado experimental). Prioridade: media-alta -- e a pergunta mais
+diretamente util pra decidir que modelo usar pra que tipo de comando
+do `/pask` daqui pra frente, mas e a hipotese mais cara de montar das
+3 (H4/H5/H6) por exigir tarefas novas, nao so parametros novos nas
+tarefas existentes.
