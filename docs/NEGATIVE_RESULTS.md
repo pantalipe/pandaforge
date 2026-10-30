@@ -4,6 +4,34 @@ Resultados negativos sao resultados validos (regra do projeto). Cada
 entrada aqui documenta uma hipotese/tecnica que NAO funcionou como
 esperado, com dados, para nao repetir a mesma tentativa sem saber.
 
+## 2026-10-09 -- Leitura sob demanda nao melhora capacidade geral no 0.8B
+
+Piloto registrado antes dos dados: `qwen3.5:0.8b`, llama-swap com jinja,
+tools nativas sem thinking, patch, sem decoys, 500 tokens/chamada,
+4 ciclos. Unica variavel: `seed_files=None` (fonte inicial) vs `[]`
+(recuperacao via read_file). Duas tarefas existentes, seeds20/21,
+AB/BA; seis dos oito episodios planejados, limite suave de tempo
+impediu o par seed21 de 002. Ausencias nao contam como falhas.
+
+001: baseline 2/2, 336.5 tokens/87.8s medios; sob demanda 1/2,
+273 tokens/56.9s. Uma falha veio de quatro leituras sem patch.
+002: baseline 0/1, 239 tokens/77.8s; sob demanda 0/1,
+168 tokens/97.7s. Fonte inicial nao basta: baseline repetiu o erro
+`stock[sku] += qty`, provocou KeyError para SKU novo e tentou depois
+patchar o texto antigo. Sob demanda ficou lendo e terminou sem tool_call.
+
+Nao generalizar: piloto minusculo, fontes/objetivos com pistas explicitas,
+orcamento de quatro ciclos, estado de cache/RAM variavel. Auditoria revelou
+que respostas com duas tools sao ecoadas inteiras, mas somente a primeira
+e executada/respondida pelo harness: confundidor que deve ser corrigido
+antes de ampliar a amostra. Schemas nativos nao garantem acao valida.
+
+Dados brutos e recursos: `results/context-seed-ablation-2026-10-09.jsonl`
+e JSONL historicos das tarefas. Auditoria cruzada:
+`results/context-seed-ablation-2026-10-09.summary.json`.
+Plano, CPU/RSS/RAM, tracos e proximo teste em
+`docs/CONTEXT_ABLATION_2026-10-09.md`. H3 e H6 continuam em aberto.
+
 ---
 
 ## 2026-09 -- Reescrita de arquivo inteiro por ciclo causa regressao
@@ -363,5 +391,4 @@ do `/pask`), antes de generalizar que decision-space nao importa.
 
 **Dados brutos:** `results/py_debug_001.jsonl` (`hypothesis:
 H4xH5-battery-2026-09-30`, celulas `*_decoys3` em ambos os modelos).
-
 

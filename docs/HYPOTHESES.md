@@ -100,6 +100,15 @@ atualizacao em H1 acima: resultado final 456 tokens / 126.6s /
 observacoes" (janela das ultimas 6 entradas do log), nao um dos
 formatos estruturados da lista original. Falta comparar as variantes.
 
+**Piloto de contexto 2026-10-09 (adjacente, nao teste de H3):** no
+`qwen3.5:0.8b` nativo sem thinking, fonte inicial vs leitura sob demanda:
+001 = 2/2 vs 1/2 (87.8s vs 56.9s medios), 002 = 0/1 vs 0/1
+(77.8s vs 97.7s). Recuperacao nao mostrou vantagem geral; seed inicial
+tambem nao evitou regressao em 002. Bateria limitada a seis episodios
+por tempo. Historico de tools multiplas incompleto encontrado no harness;
+corrigir esse contrato antes de expandir. Ver plano anterior aos dados,
+medicoes, auditoria e limitacoes em `CONTEXT_ABLATION_2026-10-09.md`.
+
 ---
 
 ## H4 (tamanho do espaco de decisao)
@@ -388,3 +397,12 @@ diretamente util pra decidir que modelo usar pra que tipo de comando
 do `/pask` daqui pra frente, mas e a hipotese mais cara de montar das
 3 (H4/H5/H6) por exigir tarefas novas, nao so parametros novos nas
 tarefas existentes.
+
+**Atualizacao 2026-10-09:** piloto de fonte inicial vs leitura sob
+demanda manteve objetivo/tools/modelo fixos. Em 001, sob demanda seed20
+alternou leitura de testes/fonte ate o limite, mas seed21 resolveu;
+em 002, sob demanda leu tres vezes e depois nao chamou tool. Baseline
+002 aplicou `+=` sem inicializar SKU e regrediu. Isso documenta falhas
+de progresso/estado, nao isola os tres eixos de H6; chamadas multiplas
+com historico incompleto tambem sao um confundidor. Detalhes em
+`CONTEXT_ABLATION_2026-10-09.md`; H6 permanece em aberto.

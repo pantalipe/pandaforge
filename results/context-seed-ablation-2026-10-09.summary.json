@@ -1,0 +1,292 @@
+{
+  "experiment": "context-seed-ablation-2026-10-09",
+  "expected_episodes": 8,
+  "observed_episodes": 6,
+  "incomplete": true,
+  "missing": [
+    "py_debug_002:seeded:seed21",
+    "py_debug_002:on_demand:seed21"
+  ],
+  "warmup_s": 21.451061964035034,
+  "total_episode_wall_s": 464.9484423000831,
+  "cells": [
+    {
+      "task": "py_debug_001",
+      "cell": "seeded",
+      "n": 2,
+      "passed": 2,
+      "seeds": [
+        20,
+        21
+      ],
+      "mean_generated_tokens": 336.5,
+      "mean_prompt_tokens_reported": 4032.5,
+      "mean_episode_wall_s": 87.83972055005142,
+      "mean_server_cpu_s": 230.5625,
+      "mean_server_rss_peak_mb": 1263.671875,
+      "mean_system_ram_peak_delta_mb": 322.8000000000002
+    },
+    {
+      "task": "py_debug_001",
+      "cell": "on_demand",
+      "n": 2,
+      "passed": 1,
+      "seeds": [
+        20,
+        21
+      ],
+      "mean_generated_tokens": 273,
+      "mean_prompt_tokens_reported": 3567.5,
+      "mean_episode_wall_s": 56.86003375001019,
+      "mean_server_cpu_s": 169.328125,
+      "mean_server_rss_peak_mb": 1259.970703125,
+      "mean_system_ram_peak_delta_mb": 127.70000000000073
+    },
+    {
+      "task": "py_debug_002",
+      "cell": "seeded",
+      "n": 1,
+      "passed": 0,
+      "seeds": [
+        20
+      ],
+      "mean_generated_tokens": 239,
+      "mean_prompt_tokens_reported": 6232,
+      "mean_episode_wall_s": 77.82771659991704,
+      "mean_server_cpu_s": 243.5625,
+      "mean_server_rss_peak_mb": 1490.54296875,
+      "mean_system_ram_peak_delta_mb": 113.60000000000036
+    },
+    {
+      "task": "py_debug_002",
+      "cell": "on_demand",
+      "n": 1,
+      "passed": 0,
+      "seeds": [
+        20
+      ],
+      "mean_generated_tokens": 168,
+      "mean_prompt_tokens_reported": 5535,
+      "mean_episode_wall_s": 97.72121710004285,
+      "mean_server_cpu_s": 221.9375,
+      "mean_server_rss_peak_mb": 1559.52734375,
+      "mean_system_ram_peak_delta_mb": 306.2000000000007
+    }
+  ],
+  "audits": [
+    {
+      "task": "py_debug_001",
+      "cell": "seeded",
+      "seed": 20,
+      "passed": true,
+      "executed_first_call_trace": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/orders.py"
+          }
+        },
+        {
+          "name": "patch_file",
+          "arguments": {
+            "path": "src/orders.py",
+            "old": "   # BUG: divide por 100 de novo, como se discount_fraction ainda\n    # estivesse numa escala de 0-100. Para discount_fraction=0.2, isso\n    # aplica um desconto de 0.2% em vez de 20% -- resultado numerico\n    # errado, sem excecao nenhuma.\n    return round(total - (total * discount_fraction / 100), 2)",
+            "content": "   return round(total - (total * discount_fraction), 2)"
+          }
+        }
+      ],
+      "proposed_calls_per_generation": [
+        2,
+        1
+      ],
+      "multi_call_generations": 1
+    },
+    {
+      "task": "py_debug_001",
+      "cell": "on_demand",
+      "seed": 20,
+      "passed": false,
+      "executed_first_call_trace": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "tests/test_orders.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/orders.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "tests/test_orders.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/orders.py"
+          }
+        }
+      ],
+      "proposed_calls_per_generation": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "multi_call_generations": 0
+    },
+    {
+      "task": "py_debug_001",
+      "cell": "on_demand",
+      "seed": 21,
+      "passed": true,
+      "executed_first_call_trace": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/orders.py"
+          }
+        },
+        {
+          "name": "run_tests",
+          "arguments": {}
+        },
+        {
+          "name": "patch_file",
+          "arguments": {
+            "path": "src/orders.py",
+            "old": "def apply_discount(total, discount_fraction):\n    \"\"\"\n    Aplica um desconto a um total.\n\n    `discount_fraction` e uma fracao de 0.0 a 1.0 (ex.: 0.2 = 20% de\n    desconto) -- e assim que os chamadores desta funcao usam.\n    \"\"\"\n    # BUG: divide por 100 de novo, como se discount_fraction ainda\n    # estivesse numa escala de 0-100. Para discount_fraction=0.2, isso\n    # aplica um desconto de 0.2% em vez de 20% -- resultado numerico\n    # errado, sem excecao nenhuma.\n    return round(total - (total * discount_fraction / 100), 2)",
+            "content": "def apply_discount(total, discount_fraction):\n    \"\"\"\n    Aplica um desconto a um total.\n\n    `discount_fraction` e uma fracao de 0.0 a 1.0 (ex.: 0.2 = 20% de\n    desconto) -- e assim que os chamadores desta funcao usam.\n    \"\"\"\n    return round(total - (total * discount_fraction), 2)"
+          }
+        }
+      ],
+      "proposed_calls_per_generation": [
+        2,
+        1,
+        1
+      ],
+      "multi_call_generations": 1
+    },
+    {
+      "task": "py_debug_001",
+      "cell": "seeded",
+      "seed": 21,
+      "passed": true,
+      "executed_first_call_trace": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/orders.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "tests/test_orders.py"
+          }
+        },
+        {
+          "name": "run_tests",
+          "arguments": {}
+        },
+        {
+          "name": "patch_file",
+          "arguments": {
+            "path": "src/orders.py",
+            "old": "def apply_discount(total, discount_fraction):\n    \"\"\"\n    Aplica um desconto a um total.\n\n    `discount_fraction` e uma fracao de 0.0 a 1.0 (ex.: 0.2 = 20% de\n    desconto) -- e assim que os chamadores desta funcao usam.\n    \"\"\"\n    # BUG: divide por 100 de novo, como se discount_fraction ainda\n    # estivesse numa escala de 0-100. Para discount_fraction=0.2, isso\n    # aplica um desconto de 0.2% em vez de 20% -- resultado numerico\n    # errado, sem excecao nenhuma.\n    return round(total - (total * discount_fraction / 100), 2)",
+            "content": "def apply_discount(total, discount_fraction):\n    \"\"\"\n    Aplica um desconto a um total.\n\n    `discount_fraction` e uma fracao de 0.0 a 1.0 (ex.: 0.2 = 20% de\n    desconto) -- e assim que os chamadores desta funcao usam.\n    \"\"\"\n    return round(total - (total * discount_fraction), 2)"
+          }
+        }
+      ],
+      "proposed_calls_per_generation": [
+        1,
+        1,
+        2,
+        1
+      ],
+      "multi_call_generations": 1
+    },
+    {
+      "task": "py_debug_002",
+      "cell": "seeded",
+      "seed": 20,
+      "passed": false,
+      "executed_first_call_trace": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/warehouse.py"
+          }
+        },
+        {
+          "name": "patch_file",
+          "arguments": {
+            "path": "src/warehouse.py",
+            "old": "           stock[sku] = qty",
+            "content": "           stock[sku] += qty"
+          }
+        },
+        {
+          "name": "run_tests",
+          "arguments": {}
+        },
+        {
+          "name": "patch_file",
+          "arguments": {
+            "path": "src/warehouse.py",
+            "old": "           stock[sku] = qty",
+            "content": "           stock[sku] += qty"
+          }
+        }
+      ],
+      "proposed_calls_per_generation": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "multi_call_generations": 0
+    },
+    {
+      "task": "py_debug_002",
+      "cell": "on_demand",
+      "seed": 20,
+      "passed": false,
+      "executed_first_call_trace": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/warehouse.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "tests/test_warehouse.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/warehouse.py"
+          }
+        },
+        {
+          "name": "no_tool_call"
+        }
+      ],
+      "proposed_calls_per_generation": [
+        2,
+        1,
+        1,
+        0
+      ],
+      "multi_call_generations": 1
+    }
+  ]
+}
