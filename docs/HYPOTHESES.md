@@ -109,6 +109,15 @@ por tempo. Historico de tools multiplas incompleto encontrado no harness;
 corrigir esse contrato antes de expandir. Ver plano anterior aos dados,
 medicoes, auditoria e limitacoes em `CONTEXT_ABLATION_2026-10-09.md`.
 
+**Repeticao apos corrigir historico, 2026-10-09:** todas as 31 requests
+com ids de tools respondidos; oito episodios completos, 1/2 sucesso
+em cada contexto/tarefa. Nos seis pares antigos disponiveis, protocolo
+corrigido 2/6 vs anterior 3/6: nao demonstrou ganho de capacidade.
+Seed21 de 002 resolveu em ambos os contextos, mas nao tinha observacao
+anterior. A vantagem de seed inicial em 001 nao se repetiu. H3 segue
+nao testada (este teste nao comprime estado). Detalhes/custos/limitacoes
+em `CONTEXT_HISTORY_FIX_2026-10-09.md`.
+
 ---
 
 ## H4 (tamanho do espaco de decisao)

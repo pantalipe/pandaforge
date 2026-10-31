@@ -143,12 +143,13 @@ def run_native_tools(
             args = {}
         path = args.get("path")
 
-        # eco da mensagem do assistente (com o tool_call) antes da resposta da tool --
-        # exigido pelo formato multi-turno de tool-calling
+        # Eco somente da chamada executada: cada id anunciado no historico
+        # precisa de resposta. Generation preserva todas as propostas para
+        # auditoria, inclusive as extras que nao executamos neste ciclo.
         messages.append({
             "role": "assistant",
             "content": gen.content or None,
-            "tool_calls": gen.tool_calls,
+            "tool_calls": [call],
         })
 
         if verbose:

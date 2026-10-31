@@ -4,6 +4,30 @@ Resultados negativos sao resultados validos (regra do projeto). Cada
 entrada aqui documenta uma hipotese/tecnica que NAO funcionou como
 esperado, com dados, para nao repetir a mesma tentativa sem saber.
 
+## 2026-10-09 -- Historico nativo corrigido nao aumenta sucesso neste piloto
+
+Correcao comprovada por teste simulado e auditoria de 31 requests: ecoar
+apenas a tool realmente executada, preservando propostas completas nos
+dados. Oito episodios novos, qwen3.5:0.8b nativo sem thinking, patch,
+500 tokens/chamada/4 ciclos, tarefas001/002, seeds20/21, AB/BA.
+Ambos os contextos (fonte inicial e sob demanda) tiveram 1/2 em cada tarefa.
+Nos seis pares antigos disponiveis, 2/6 novos vs 3/6 antigos: corrigir o
+contrato de historico nao demonstrou ganho de capacidade. Nao ha evidencia
+repetida da vantagem de fonte inicial observada antes.
+
+001 fonte inicial seed21 corrigiu a formula ERRADO (`*100`); 002 seed20
+em ambos os contextos usou `+=` sem inicializar SKU e regrediu para
+2 passed/3 failed. Historico valido nao resolve esses erros semanticos.
+002 seed21 acertou em ambos usando `.get(sku, 0) + qty`, mas esse par nao
+existia no piloto antigo: nao atribuir o sucesso a correcao do harness.
+
+Sob demanda teve menor custo medio, mas nao domina por seed; n=2/celula,
+RAM/cache/ambiente diferentes e fixtures com pistas explicitas impedem
+generalizar. Dados separados e custos em `CONTEXT_HISTORY_FIX_2026-10-09.md`;
+raws/summaries `results/context-history-fixed-{001,002}-2026-10-09.*`.
+Proximo teste proposto: feedback automatico do pytest depois de patch
+malsucedido, isolado de refresh de fonte. Nao executado nesta rodada.
+
 ## 2026-10-09 -- Leitura sob demanda nao melhora capacidade geral no 0.8B
 
 Piloto registrado antes dos dados: `qwen3.5:0.8b`, llama-swap com jinja,
@@ -391,4 +415,3 @@ do `/pask`), antes de generalizar que decision-space nao importa.
 
 **Dados brutos:** `results/py_debug_001.jsonl` (`hypothesis:
 H4xH5-battery-2026-09-30`, celulas `*_decoys3` em ambos os modelos).
-

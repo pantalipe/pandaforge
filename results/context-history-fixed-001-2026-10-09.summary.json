@@ -1,0 +1,205 @@
+{
+  "experiment": "context-history-fixed-2026-10-09",
+  "expected_episodes": 4,
+  "observed_episodes": 4,
+  "incomplete": false,
+  "missing": [],
+  "warmup_s": 13.10066270828247,
+  "total_episode_wall_s": 208.90532780007925,
+  "cells": [
+    {
+      "task": "py_debug_001",
+      "cell": "seeded",
+      "n": 2,
+      "passed": 1,
+      "seeds": [
+        20,
+        21
+      ],
+      "mean_generated_tokens": 344.5,
+      "mean_prompt_tokens_reported": 5717,
+      "mean_episode_wall_s": 58.42336695000995,
+      "mean_server_cpu_s": 190.046875,
+      "mean_server_rss_peak_mb": 1441.572265625,
+      "mean_system_ram_peak_delta_mb": 206.70000000000073
+    },
+    {
+      "task": "py_debug_001",
+      "cell": "on_demand",
+      "n": 2,
+      "passed": 1,
+      "seeds": [
+        20,
+        21
+      ],
+      "mean_generated_tokens": 219.5,
+      "mean_prompt_tokens_reported": 4289.5,
+      "mean_episode_wall_s": 46.029296950029675,
+      "mean_server_cpu_s": 150.3203125,
+      "mean_server_rss_peak_mb": 1530.291015625,
+      "mean_system_ram_peak_delta_mb": 235.0
+    }
+  ],
+  "audits": [
+    {
+      "task": "py_debug_001",
+      "cell": "seeded",
+      "seed": 20,
+      "passed": true,
+      "executed_first_call_trace": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/orders.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "tests/test_orders.py"
+          }
+        },
+        {
+          "name": "run_tests",
+          "arguments": {}
+        },
+        {
+          "name": "patch_file",
+          "arguments": {
+            "path": "src/orders.py",
+            "old": "def apply_discount(total, discount_fraction):\n    \"\"\"\n    Aplica um desconto a um total.\n\n    `discount_fraction` e uma fracao de 0.0 a 1.0 (ex.: 0.2 = 20% de\n    desconto) -- e assim que os chamadores desta funcao usam.\n    \"\"\"\n    # BUG: divide por 100 de novo, como se discount_fraction ainda\n    # estivesse numa escala de 0-100. Para discount_fraction=0.2, isso\n    # aplica um desconto de 0.2% em vez de 20% -- resultado numerico\n    # errado, sem excecao nenhuma.\n    return round(total - (total * discount_fraction / 100), 2)",
+            "content": "def apply_discount(total, discount_fraction):\n    \"\"\"\n    Aplica um desconto a um total.\n\n    `discount_fraction` e uma fracao de 0.0 a 1.0 (ex.: 0.2 = 20% de\n    desconto) -- e assim que os chamadores desta funcao usam.\n    \"\"\"\n    return round(total - (total * discount_fraction), 2)"
+          }
+        }
+      ],
+      "proposed_calls_per_generation": [
+        2,
+        1,
+        1,
+        1
+      ],
+      "multi_call_generations": 1,
+      "request_history_consistent": true
+    },
+    {
+      "task": "py_debug_001",
+      "cell": "on_demand",
+      "seed": 20,
+      "passed": false,
+      "executed_first_call_trace": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "tests/test_orders.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/orders.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "tests/test_orders.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/orders.py"
+          }
+        }
+      ],
+      "proposed_calls_per_generation": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "multi_call_generations": 0,
+      "request_history_consistent": true
+    },
+    {
+      "task": "py_debug_001",
+      "cell": "on_demand",
+      "seed": 21,
+      "passed": true,
+      "executed_first_call_trace": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/orders.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "tests/test_orders.py"
+          }
+        },
+        {
+          "name": "run_tests",
+          "arguments": {}
+        },
+        {
+          "name": "patch_file",
+          "arguments": {
+            "path": "src/orders.py",
+            "old": "   return round(total - (total * discount_fraction / 100), 2)",
+            "content": "   return round(total - (total * discount_fraction), 2)"
+          }
+        }
+      ],
+      "proposed_calls_per_generation": [
+        2,
+        1,
+        1,
+        1
+      ],
+      "multi_call_generations": 1,
+      "request_history_consistent": true
+    },
+    {
+      "task": "py_debug_001",
+      "cell": "seeded",
+      "seed": 21,
+      "passed": false,
+      "executed_first_call_trace": [
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "src/orders.py"
+          }
+        },
+        {
+          "name": "read_file",
+          "arguments": {
+            "path": "tests/test_orders.py"
+          }
+        },
+        {
+          "name": "run_tests",
+          "arguments": {}
+        },
+        {
+          "name": "patch_file",
+          "arguments": {
+            "path": "src/orders.py",
+            "old": "   return round(total - (total * discount_fraction / 100), 2)",
+            "content": "   return round(total - (total * discount_fraction * 100), 2)"
+          }
+        }
+      ],
+      "proposed_calls_per_generation": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "multi_call_generations": 0,
+      "request_history_consistent": true
+    }
+  ]
+}

@@ -25,6 +25,18 @@ from pandaforge.tasks import PyDebugTask
 EXPERIMENT = "context-seed-ablation-2026-10-09"
 
 
+class HistoryAuditedBackend(LlamaServerBackend):
+    """Check the actual history sent to the runtime; preserve proposal records."""
+    def chat(self, messages, **kwargs):
+        announced = [call["id"] for msg in messages if msg["role"] == "assistant"
+                     for call in msg.get("tool_calls", [])]
+        answered = [msg["tool_call_id"] for msg in messages if msg["role"] == "tool"]
+        if announced != answered:
+            raise AssertionError(f"Inconsistent tool history: {announced} != {answered}")
+        self.history_audits.append({"announced": announced, "answered": answered})
+        return super().chat(messages, **kwargs)
+
+
 def load_ram_probe(project_path):
     # Resolve with `panda projects path ollama-bench` before invoking this script.
     path = Path(project_path) / "bench.py"
@@ -101,12 +113,15 @@ def main():
     ap.add_argument("--bench-path", required=True,
                     help="Current ollama-bench path resolved by panda projects path")
     ap.add_argument("--output", default=f"results/{EXPERIMENT}.jsonl")
+    ap.add_argument("--experiment", default=EXPERIMENT)
+    ap.add_argument("--tasks", nargs="+", default=["py_debug_001", "py_debug_002"],
+                    choices=["py_debug_001", "py_debug_002"])
     ap.add_argument("--max-elapsed", type=float, default=420,
                     help="Soft battery cap; no new episode after this many seconds")
     args = ap.parse_args()
     import psutil  # installed dependency only; no installation fallback
     ram, ram_path = load_ram_probe(args.bench_path)
-    tasks = [PyDebugTask.load(name) for name in ("py_debug_001", "py_debug_002")]
+    tasks = [PyDebugTask.load(name) for name in args.tasks]
     fixture_hashes = {}
     for task in tasks:
         files = {p.relative_to(task.fixture_dir).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -126,7 +141,7 @@ def main():
     output = ROOT / args.output
     if output.exists():
         raise SystemExit(f"Refusing to mix/overwrite an existing experiment: {output}")
-    backend = LlamaServerBackend(model="qwen3.5:0.8b", timeout_s=90)
+    backend = HistoryAuditedBackend(model="qwen3.5:0.8b", timeout_s=90)
     if not backend.is_online():
         raise SystemExit("llama-swap offline")
     started = time.monotonic()
@@ -142,6 +157,7 @@ def main():
                         print("Soft elapsed cap reached; battery incomplete", flush=True)
                         return
                     backend.seed = seed
+                    backend.history_audits = []
                     workdir = task.setup()
                     probe = ResourceProbe(ram, psutil)
                     t0 = time.monotonic()
@@ -155,9 +171,13 @@ def main():
                         config = {"cell_label": cell, "seed": seed, "max_cycles": 4,
                                   "max_tokens": 500, "edit_tool": "patch", "decoy_tools": None,
                                   "disable_thinking": True,
+                                  "experiment": args.experiment,
+                                  "planned_tasks": args.tasks, "planned_seeds": [20, 21],
+                                  "native_strategy_sha256": hashlib.sha256(
+                                      (ROOT / "src/pandaforge/strategies/native_tools.py").read_bytes()).hexdigest(),
                                   "seed_files": None if cell == "seeded" else [],
                                   "episode_elapsed_s": elapsed, "resources": resources}
-                        record_episode(task.name, ep, backend.model, config, EXPERIMENT)
+                        record_episode(task.name, ep, backend.model, config, args.experiment)
                         row = {"timestamp": datetime.now(timezone.utc).isoformat(),
                                "task": task.name, "cell": cell, "seed": seed,
                                "model": backend.model, "config": config,
@@ -171,6 +191,7 @@ def main():
                                "generated_tokens": ep.total_tokens, "n_calls": ep.n_calls,
                                "prompt_tokens_reported": sum(g.tokens_evaluated for g in ep.generations),
                                "raw_generations": [g.raw for g in ep.generations],
+                               "request_tool_history": backend.history_audits,
                                "final_source": {p.relative_to(workdir).as_posix(): p.read_text(encoding="utf-8")
                                                 for p in sorted((workdir / "src").glob("*.py"))}}
                         out.write(json.dumps(row, ensure_ascii=False) + "\n")
